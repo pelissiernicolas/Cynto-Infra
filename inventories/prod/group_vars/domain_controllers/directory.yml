@@ -1,4 +1,14 @@
+# group_vars/domain_controllers/directory.yml
+# =============================================================================
+# Objets Active Directory : OU, groupes, comptes de service.
+# Les UTILISATEURS HUMAINS ne sont PLUS définis ici : ils sont décrits dans le
+# CSV inventories/prod/files/ad_users.csv et créés par le rôle ad_users.
+# =============================================================================
+
 ad_ous:
+  - name: "Postes"          # OU des postes de travail (cible de la GPO GLPI Agent)
+    path: "DC=cynto,DC=tech"
+
   - name: "Serveurs"
     path: "DC=cynto,DC=tech"
 
@@ -25,9 +35,16 @@ ad_ous:
 
   - name: "Comptes de service"
     path: "OU=Utilisateurs,DC=cynto,DC=tech"
-  
-  - name: "Postes"
-    path: "DC=cynto,DC=tech"
+
+# -----------------------------------------------------------------------------
+# Correspondance clé d'OU (colonne "ou" du CSV ad_users.csv) -> DN complet.
+# Pour ajouter une destination, créez l'OU dans ad_ous ci-dessus puis ajoutez
+# une entrée ici, et utilisez la clé dans la colonne "ou" du CSV.
+# -----------------------------------------------------------------------------
+ad_user_ou_map:
+  Admins: "OU=Admins,OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
+  Commerciaux: "OU=Commerciaux,OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
+  Utilisateurs: "OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
 
 ad_groups:
   - name: "GG_Admins_Infra"
@@ -91,22 +108,12 @@ ad_groups:
     category: "security"
     path: "OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech"
 
-ad_users:
-  - name: "nicolas.pelissier"
-    firstname: "Nicolas"
-    surname: "Pelissier"
-    display_name: "Nicolas Pelissier"
-    upn: "nicolas.pelissier@cynto.tech"
-    password: "{{ vault_default_user_password }}"
-    path: "OU=Admins,OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
-    enabled: true
-    password_never_expires: false
-    groups:
-      - "GG_Admins_Infra"
-      - "GG_VPN_Users"
-      - "GG_Nextcloud_Admins"
-      - "GG_Nextcloud_10gb"
-
+# -----------------------------------------------------------------------------
+# Comptes de SERVICE (non humains). Gérés en YAML, pas dans le CSV.
+# Mot de passe posé à la création seulement (update_password: on_create dans le
+# rôle), n'expire jamais, jamais forcés à changer.
+# -----------------------------------------------------------------------------
+ad_service_accounts:
   - name: "svc_wsus"
     firstname: "svc"
     surname: "wsus"

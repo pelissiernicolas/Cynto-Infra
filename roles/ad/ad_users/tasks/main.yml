@@ -1,25 +1,133 @@
-- name: Créer les utilisateurs AD
+# roles/ad/ad_users/tasks/main.yml
+# =============================================================================
+# Création des utilisateurs Active Directory.
+#   - Utilisateurs HUMAINS : lus depuis le CSV (ad_users_csv_path) = source de vérité.
+#   - Comptes de SERVICE   : définis en YAML (variable ad_service_accounts).
+#
+# IDEMPOTENCE DU MOT DE PASSE (le point important) :
+#   * update_password: on_create
+#       -> le mot de passe temporaire n'est écrit qu'à la CRÉATION du compte.
+#          Une réexécution du playbook NE réécrit PAS le mot de passe que
+#          l'utilisateur a choisi ensuite.
+#   * password_expired calculé dynamiquement :
+#       -> true UNIQUEMENT pour un compte qui n'existe pas encore (forçage du
+#          changement à la 1re connexion). Pour un compte déjà présent, false :
+#          on ne re-force donc jamais le changement après coup.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1) Lecture + normalisation du CSV (exécutée sur le nœud de contrôle)
+# -----------------------------------------------------------------------------
+- name: Lire le CSV des utilisateurs (sur le nœud de contrôle)
+  community.general.read_csv:
+    path: "{{ ad_users_csv_path }}"
+    delimiter: ","
+  delegate_to: localhost
+  become: false
+  run_once: true
+  register: ad_users_csv
+
+- name: Normaliser les utilisateurs issus du CSV
+  ansible.builtin.set_fact:
+    ad_csv_users: >-
+      {{ ad_csv_users | default([]) + [ {
+           'name':         row.login | trim,
+           'firstname':    row.prenom | trim,
+           'surname':      row.nom | trim,
+           'display_name': (row.prenom | trim) ~ ' ' ~ (row.nom | trim),
+           'upn':          (row.login | trim) ~ '@' ~ ad_domain_name,
+           'path':         ad_user_ou_map[row.ou | trim],
+           'enabled':      ((row.actif | default('oui')) | trim | lower) in ['oui', 'yes', 'true', '1', 'o', 'y'],
+           'must_change':  ((row.changer_mdp | default('oui')) | trim | lower) in ['oui', 'yes', 'true', '1', 'o', 'y'],
+           'groups':       (row.groupes | default('')).split(';') | map('trim') | reject('equalto', '') | list
+         } ] }}
+  loop: "{{ ad_users_csv.list }}"
+  loop_control:
+    loop_var: row
+    label: "{{ row.login }}"
+
+# -----------------------------------------------------------------------------
+# 2) Comptes déjà présents (pour ne forcer le changement de mdp qu'aux nouveaux)
+# -----------------------------------------------------------------------------
+- name: Récupérer les comptes utilisateurs déjà présents dans l'AD
+  microsoft.ad.object_info:
+    ldap_filter: "(&(objectClass=user)(objectCategory=person))"
+    properties:
+      - sAMAccountName
+  register: ad_existing
+
+- name: Construire la liste (en minuscules) des logins déjà existants
+  ansible.builtin.set_fact:
+    ad_existing_logins: >-
+      {{ ad_existing.objects | default([])
+         | map(attribute='sAMAccountName', default='')
+         | select('string') | reject('equalto', '')
+         | map('lower') | list }}
+
+# -----------------------------------------------------------------------------
+# 3) Utilisateurs HUMAINS (depuis le CSV)
+# -----------------------------------------------------------------------------
+- name: Créer / garantir les utilisateurs humains
   microsoft.ad.user:
     identity: "{{ item.name }}"
     firstname: "{{ item.firstname }}"
     surname: "{{ item.surname }}"
     display_name: "{{ item.display_name }}"
     upn: "{{ item.upn }}"
-    password: "{{ item.password }}"
     path: "{{ item.path }}"
-    enabled: "{{ item.enabled | default(true) }}"
-    password_never_expires: "{{ item.password_never_expires | default(false) }}"
+    password: "{{ ad_default_user_password }}"
+    update_password: on_create
+    password_expired: "{{ (item.must_change | bool) and ((item.name | lower) not in ad_existing_logins) }}"
+    enabled: "{{ item.enabled }}"
     state: present
-  loop: "{{ ad_users }}"
+  loop: "{{ ad_csv_users }}"
+  loop_control:
+    label: "{{ item.name }} (nouveau={{ (item.name | lower) not in ad_existing_logins }})"
   no_log: true
 
-- name: Ajouter les utilisateurs à leurs groupes
+- name: Ajouter les utilisateurs humains à leurs groupes
   microsoft.ad.group:
     identity: "{{ pair.1 }}"
     members:
       add:
         - "{{ pair.0.name }}"
     state: present
-  loop: "{{ ad_users | subelements('groups', skip_missing=True) }}"
+  loop: "{{ ad_csv_users | subelements('groups', skip_missing=True) }}"
   loop_control:
     loop_var: pair
+    label: "{{ pair.0.name }} -> {{ pair.1 }}"
+
+# -----------------------------------------------------------------------------
+# 4) Comptes de SERVICE (YAML : ad_service_accounts)
+#    Mot de passe également posé à la création seulement ; jamais forcés à
+#    changer ; expiration désactivée par défaut (password_never_expires).
+# -----------------------------------------------------------------------------
+- name: Créer / garantir les comptes de service
+  microsoft.ad.user:
+    identity: "{{ item.name }}"
+    firstname: "{{ item.firstname | default(omit) }}"
+    surname: "{{ item.surname | default(omit) }}"
+    display_name: "{{ item.display_name | default(item.name) }}"
+    upn: "{{ item.upn }}"
+    path: "{{ item.path }}"
+    password: "{{ item.password }}"
+    update_password: on_create
+    password_never_expires: "{{ item.password_never_expires | default(true) }}"
+    enabled: "{{ item.enabled | default(true) }}"
+    state: present
+  loop: "{{ ad_service_accounts | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Ajouter les comptes de service à leurs groupes
+  microsoft.ad.group:
+    identity: "{{ pair.1 }}"
+    members:
+      add:
+        - "{{ pair.0.name }}"
+    state: present
+  loop: "{{ ad_service_accounts | default([]) | subelements('groups', skip_missing=True) }}"
+  loop_control:
+    loop_var: pair
+    label: "{{ pair.0.name }} -> {{ pair.1 }}"

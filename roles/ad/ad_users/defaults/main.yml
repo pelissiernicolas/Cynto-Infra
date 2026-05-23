@@ -1,0 +1,16 @@
+# roles/ad/ad_users/defaults/main.yml
+---
+# Chemin du CSV des utilisateurs humains (lu sur le nœud de contrôle).
+# inventory_dir = dossier de l'inventaire (inventories/prod), quel que soit
+# l'endroit d'où on lance ansible-playbook.
+ad_users_csv_path: "{{ inventory_dir }}/files/ad_users.csv"
+
+# Mot de passe temporaire posé à la CRÉATION des comptes humains.
+ad_default_user_password: "{{ vault_default_user_password }}"
+
+# Liste des comptes de service (définie en YAML dans group_vars). Voir directory.yml.
+ad_service_accounts: []
+
+# Table de correspondance clé d'OU (colonne "ou" du CSV) -> DN complet.
+# Surchargée dans group_vars/domain_controllers/directory.yml.
+ad_user_ou_map: {}
