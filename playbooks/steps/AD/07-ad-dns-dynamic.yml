@@ -1,0 +1,7 @@
+- name: Configuration des mises à jour dynamiques DNS
+  hosts: primary_dc
+  gather_facts: false
+  tasks:
+    - import_role:
+        name: ad_dns
+        tasks_from: dynamic_updates.yml

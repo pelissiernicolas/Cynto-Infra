@@ -1,0 +1,36 @@
+---
+- name: Activer les mises à jour dynamiques sécurisées sur la zone directe
+  ansible.windows.win_powershell:
+    script: |
+      $zoneName = "{{ dns_forward_zone_name }}"
+      $zone = Get-DnsServerZone -Name $zoneName -ErrorAction Stop
+
+      if ($zone.DynamicUpdate -ne "Secure") {
+          Set-DnsServerPrimaryZone -Name $zoneName -DynamicUpdate Secure
+          Write-Output "Zone directe mise à jour en Secure"
+      } else {
+          Write-Output "Zone directe déjà en Secure"
+      }
+  register: forward_secure_result
+  changed_when: >
+    forward_secure_result.output is defined and
+    forward_secure_result.output | length > 0 and
+    'mise à jour' in forward_secure_result.output[0]
+
+- name: Activer les mises à jour dynamiques sécurisées sur la zone inverse
+  ansible.windows.win_powershell:
+    script: |
+      $zoneName = "{{ dns_reverse_zone_name }}"
+      $zone = Get-DnsServerZone -Name $zoneName -ErrorAction Stop
+
+      if ($zone.DynamicUpdate -ne "Secure") {
+          Set-DnsServerPrimaryZone -Name $zoneName -DynamicUpdate Secure
+          Write-Output "Zone inverse mise à jour en Secure"
+      } else {
+          Write-Output "Zone inverse déjà en Secure"
+      }
+  register: reverse_secure_result
+  changed_when: >
+    reverse_secure_result.output is defined and
+    reverse_secure_result.output | length > 0 and
+    'mise à jour' in reverse_secure_result.output[0]

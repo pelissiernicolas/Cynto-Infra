@@ -1,0 +1,60 @@
+# playbooks/glpi.yml
+# SERVICE : GLPI (Ubuntu) — préparation serveur, base MariaDB (rôle partagé),
+# Apache/PHP, installation GLPI, post-installation, HTTPS, intégration LDAPS,
+# groupes AD, puis déploiement de la GPO GLPI-Agent côté Active Directory.
+# Pré-requis : playbooks/ldaps-prep.yml exécuté (pour la CA AD).
+---
+- name: Préparation du serveur GLPI
+  hosts: glpi
+  become: true
+  gather_facts: true
+  roles:
+    - base_server
+
+- name: Base de données MariaDB pour GLPI (rôle partagé)
+  hosts: glpi
+  become: true
+  roles:
+    - mariadb
+
+- name: Installation d'Apache et PHP pour GLPI
+  hosts: glpi
+  become: true
+  roles:
+    - apache_php
+
+- name: Installation de GLPI
+  hosts: glpi
+  become: true
+  roles:
+    - glpi
+
+- name: Post-installation et sécurisation GLPI
+  hosts: glpi
+  become: true
+  roles:
+    - glpi_postinstall
+
+- name: Configuration HTTPS pour GLPI
+  hosts: glpi
+  become: true
+  roles:
+    - apache_https
+
+- name: Configuration LDAPS GLPI
+  hosts: glpi
+  become: true
+  roles:
+    - glpi_ldap
+
+- name: Configuration des groupes AD dans GLPI
+  hosts: glpi
+  become: true
+  roles:
+    - glpi_ad_groups
+
+- name: Déploiement de la GPO GLPI-Agent (côté Active Directory)
+  hosts: ad
+  gather_facts: false
+  roles:
+    - gpo_glpi_agent

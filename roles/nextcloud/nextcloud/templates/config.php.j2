@@ -1,0 +1,32 @@
+<?php
+$CONFIG = array (
+  'instanceid' => '',
+  'passwordsalt' => '',
+  'secret' => '',
+  'trusted_domains' =>
+  array (
+{% for d in nextcloud_trusted_domains %}
+    {{ loop.index0 }} => '{{ d }}',
+{% endfor %}
+  ),
+  'datadirectory' => '{{ nextcloud_data_dir }}',
+  'dbtype' => 'mysql',
+  'version' => '',
+  'overwrite.cli.url' => 'http://{{ nextcloud_domain }}',
+  'dbname' => '{{ nextcloud_db_name }}',
+  'dbhost' => 'localhost',
+  'dbport' => '',
+  'dbtableprefix' => 'oc_',
+  'mysql.utf8mb4' => true,
+  'dbuser' => '{{ nextcloud_db_user }}',
+  'dbpassword' => '{{ nextcloud_db_password }}',
+  'installed' => true,
+  'default_phone_region' => 'FR',
+  'memcache.local' => '\OC\Memcache\APCu',
+  'memcache.locking' => '\OC\Memcache\Redis',
+  'redis' =>
+  array (
+    'host' => '{{ redis_socket }}',
+    'port' => 0,
+  ),
+);

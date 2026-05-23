@@ -1,0 +1,10 @@
+- name: Affecter les VLANs aux interfaces pfSense
+  pfsensible.core.pfsense_interface:
+    descr: "{{ item.name }}"
+    interface: "{{ item.interface }}"
+    enable: true
+    ipv4_type: static
+    ipv4_address: "{{ item.ip }}"
+    ipv4_prefixlen: "{{ item.subnet }}"
+    state: present
+  loop: "{{ pfsense_interfaces }}"

@@ -1,0 +1,6 @@
+server_hostname: "srv-ad-01"
+server_ip: "10.8.40.10"
+server_role: "domain_controller"
+network_dns_servers:
+  - "10.8.40.10"
+  - "10.8.40.11"

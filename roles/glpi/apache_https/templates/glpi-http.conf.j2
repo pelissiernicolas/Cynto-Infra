@@ -1,0 +1,11 @@
+# roles/apache_https/templates/glpi-http.conf.j2
+<VirtualHost *:80>
+    ServerName {{ glpi_server_name }}
+    ServerAlias {{ server_hostname }}
+
+    RewriteEngine On
+    RewriteRule ^/?(.*) https://{{ glpi_server_name }}/$1 [R=301,L]
+
+    ErrorLog ${APACHE_LOG_DIR}/glpi_http_error.log
+    CustomLog ${APACHE_LOG_DIR}/glpi_http_access.log combined
+</VirtualHost>

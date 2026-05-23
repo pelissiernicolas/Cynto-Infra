@@ -1,0 +1,142 @@
+# roles/glpi_ldap/tasks/main.yml
+---
+- name: Ajouter les contrôleurs de domaine dans /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^{{ item.ip }}\s+{{ item.fqdn }}'
+    line: "{{ item.ip }} {{ item.fqdn }}"
+    state: present
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ ad_dc_hosts }}"
+  no_log: true
+
+- name: Installer les paquets LDAP
+  apt:
+    name:
+      - php-ldap
+      - ldap-utils
+      - openssl
+    state: present
+    update_cache: true
+
+- name: Copier le certificat CA AD
+  copy:
+    src: "{{ ldap_ca_cert_src }}"
+    dest: /tmp/ad-ca.cer
+
+- name: Convertir le certificat en .crt
+  command:
+    cmd: >
+      openssl x509 -inform DER
+      -in /tmp/ad-ca.cer
+      -out {{ ldap_ca_cert_remote_path }}
+
+- name: Déclarer la CA LDAP
+  lineinfile:
+    path: /etc/ldap/ldap.conf
+    line: "TLS_CACERT {{ ldap_ca_cert_remote_path }}"
+    create: true
+
+- name: Mettre à jour les certificats
+  command: update-ca-certificates
+
+- name: Tester LDAPS
+  ansible.builtin.command:
+    argv:
+      - ldapwhoami
+      - -x
+      - -H
+      - "{{ item.host }}"
+      - -D
+      - "{{ item.bind_dn }}"
+      - -w
+      - "{{ vault_service_account_password }}"
+  loop: "{{ ldap_servers }}"
+  changed_when: false
+  no_log: true
+
+- name: Chiffrer le mot de passe LDAP avec GLPI
+  ansible.builtin.command: >
+    php -r 'chdir("{{ glpi_install_dir }}");
+    require_once "vendor/autoload.php";
+    if (!defined("GLPI_CONFIG_DIR")) { define("GLPI_CONFIG_DIR", "{{ glpi_install_dir }}/config"); }
+    echo (new GLPIKey())->encrypt("{{ vault_service_account_password }}");'
+  register: glpi_ldap_encrypted_password
+  changed_when: false
+  no_log: false
+
+- name: Supprimer toutes les configurations LDAP GLPI
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: "DELETE FROM glpi_authldaps;"
+  no_log: true
+
+- name: Créer les configurations LDAP GLPI (multi AD)
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: |
+      INSERT INTO glpi_authldaps
+      (
+        name, host, port, basedn, rootdn, rootdn_passwd,
+        `condition`, login_field, sync_field,
+        group_field, group_condition, group_search_type, group_member_field,
+        use_tls, use_bind, is_active, is_default,
+        date_creation, date_mod
+      )
+      VALUES
+      (
+        '{{ item.name }}',
+        '{{ item.host }}',
+        {{ ldap_port }},
+        '{{ ldap_base_dn }}',
+        '{{ item.bind_dn }}',
+        '{{ glpi_ldap_encrypted_password.stdout }}',
+        '{{ ldap_user_filter }}',
+        '{{ ldap_login_field }}',
+        '{{ ldap_sync_field }}',
+        '{{ ldap_group_field }}',
+        '{{ ldap_group_condition }}',
+        {{ ldap_group_search_type }},
+        '{{ ldap_group_member_field }}',
+        0,
+        1,
+        1,
+        {{ item.is_default | default(0) }},
+        NOW(),
+        NOW()
+      );
+  loop: "{{ ldap_servers }}"
+  loop_control:
+    extended: true
+    label: "{{ item.name }}"
+  no_log: true
+  
+- name: Synchroniser les utilisateurs LDAP dans GLPI
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - bin/console
+      - glpi:ldap:synchronize_users
+      - --only-create-new
+      - --no-interaction
+  args:
+    chdir: "{{ glpi_install_dir }}"
+  changed_when: false
+
+- name: Masquer le choix de la source de connexion sur la page login
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: >
+      UPDATE glpi_configs
+      SET value = '0'
+      WHERE name = 'display_login_source';
+  no_log: false

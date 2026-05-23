@@ -1,0 +1,7 @@
+- name: Création des enregistrements DNS
+  hosts: primary_dc
+  gather_facts: false
+  tasks:
+    - import_role:
+        name: ad_dns
+        tasks_from: records.yml

@@ -1,0 +1,163 @@
+---
+- name: Vérifier que les groupes existent dans Active Directory
+  ansible.builtin.command:
+    argv:
+      - ldapsearch
+      - -x
+      - -H
+      - "{{ ldap_servers[0].host }}"
+      - -D
+      - "{{ ldap_servers[0].bind_dn }}"
+      - -w
+      - "{{ vault_service_account_password }}"
+      - -b
+      - "{{ item.dn }}"
+      - "(objectClass=group)"
+      - cn
+  loop: "{{ glpi_ad_groups }}"
+  changed_when: false
+  no_log: true
+
+- name: Supprimer les anciens groupes GLPI importés depuis AD
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: >
+      DELETE FROM glpi_groups
+      WHERE name IN (
+      {% for group in glpi_ad_groups %}
+      '{{ group.name }}'{% if not loop.last %},{% endif %}
+      {% endfor %}
+      );
+
+- name: Importer les groupes AD dans GLPI
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: |
+      INSERT INTO glpi_groups
+      (
+        entities_id,
+        is_recursive,
+        name,
+        completename,
+        comment,
+        ldap_field,
+        ldap_value,
+        ldap_group_dn,
+        is_requester,
+        is_watcher,
+        is_assign,
+        is_task,
+        is_notify,
+        date_creation,
+        date_mod
+      )
+      VALUES
+      (
+        0,
+        1,
+        '{{ item.name }}',
+        '{{ item.name }}',
+        'Groupe importé depuis Active Directory par Ansible',
+        'cn',
+        '{{ item.name }}',
+        '{{ item.dn }}',
+        1,
+        1,
+        1,
+        1,
+        1,
+        NOW(),
+        NOW()
+      );
+  loop: "{{ glpi_ad_groups }}"
+
+- name: Supprimer anciennes règles GLPI LDAP
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: |
+      DELETE FROM glpi_rules
+      WHERE name LIKE 'LDAP GG_GLPI_%';
+
+- name: Créer les règles d'habilitation GLPI
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: |
+      INSERT INTO glpi_rules
+      (
+        entities_id,
+        is_recursive,
+        sub_type,
+        ranking,
+        name,
+        description,
+        `match`,
+        is_active,
+        date_creation,
+        date_mod
+      )
+      VALUES
+      (
+        0,
+        1,
+        'RuleRight',
+        100,
+        'LDAP {{ item.name }}',
+        'Règle créée par Ansible',
+        'AND',
+        1,
+        NOW(),
+        NOW()
+      );
+  loop: "{{ glpi_ad_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Ajouter les critères des règles GLPI LDAP
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: |
+      INSERT INTO glpi_rulecriterias
+      (rules_id, criteria, `condition`, pattern)
+      SELECT r.id, '_groups_id', 0, g.id
+      FROM glpi_rules r
+      JOIN glpi_groups g ON g.name = '{{ item.name }}'
+      WHERE r.name = 'LDAP {{ item.name }}';
+  loop: "{{ glpi_ad_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Récupérer les profils GLPI
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: "SELECT id, name FROM glpi_profiles;"
+  register: glpi_profiles
+
+- name: Construire mapping profils
+  ansible.builtin.set_fact:
+    glpi_profiles_map: "{{ dict(glpi_profiles.query_result[0] | map(attribute='name') | zip(glpi_profiles.query_result[0] | map(attribute='id'))) }}"
+
+- name: Ajouter les actions des règles GLPI LDAP
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: |
+      INSERT INTO glpi_ruleactions
+      (rules_id, action_type, field, value)
+      SELECT r.id, 'assign', 'profiles_id', '{{ glpi_profiles_map[item.profile] }}'
+      FROM glpi_rules r
+      WHERE r.name = 'LDAP {{ item.name }}'
+
+      UNION ALL
+
+      SELECT r.id, 'assign', 'entities_id', '0'
+      FROM glpi_rules r
+      WHERE r.name = 'LDAP {{ item.name }}';
+  loop: "{{ glpi_ad_groups }}"
+  loop_control:
+    label: "{{ item.name }}"

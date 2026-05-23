@@ -1,0 +1,12 @@
+# playbooks/ad.yml
+# SERVICE : Active Directory (Windows) — forêt, DC, objets, DNS.
+# Cible : groupes windows / domain_controllers / primary_dc / secondary_dcs.
+---
+- import_playbook: 01-win-base.yml
+- import_playbook: 02-win-network.yml
+- import_playbook: 03-ad-forest.yml
+- import_playbook: 04-ad-secondary-dc.yml
+- import_playbook: 05-ad-objects.yml
+- import_playbook: 06-ad-dns-zones.yml
+- import_playbook: 07-ad-dns-dynamic.yml
+- import_playbook: 08-ad-dns-records.yml

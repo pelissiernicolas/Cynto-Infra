@@ -1,0 +1,6 @@
+- name: Créer les OU
+  microsoft.ad.ou:
+    name: "{{ item.name }}"
+    path: "{{ item.path }}"
+    state: present
+  loop: "{{ ad_ous }}"

@@ -1,0 +1,27 @@
+appapi_daemon_name: docker_proxy_local
+appapi_daemon_display_name: "Docker Proxy Local"
+appapi_daemon_deploy_type: docker-install
+appapi_daemon_protocol: http
+appapi_daemon_host: "127.0.0.1:2375"
+appapi_daemon_network: host
+
+
+docker_socket_proxy_container_name: nextcloud-appapi-dsp
+docker_socket_proxy_image: ghcr.io/nextcloud/nextcloud-appapi-dsp:release
+docker_socket_proxy_bind: "127.0.0.1:2375:2375"
+
+harp_container_name: appapi-harp
+harp_image: ghcr.io/nextcloud/nextcloud-appapi-harp:release
+
+harp_exapps_http_bind: "127.0.0.1:8780:8780"
+harp_frp_bind: "0.0.0.0:8782:8782"
+harp_publish_http: "127.0.0.1:8780:8780"
+harp_publish_frp: "0.0.0.0:8782:8782"
+
+
+appapi_harp_daemon_name: harp_local
+appapi_harp_daemon_display_name: "HaRP Local"
+appapi_harp_deploy_type: docker-install
+appapi_harp_protocol: http
+appapi_harp_host: "127.0.0.1:8780"
+appapi_harp_network: host

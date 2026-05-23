@@ -1,0 +1,28 @@
+pfsense_vlans:
+  - id: 10
+    parent_interface: vtnet1
+    description: VLAN10_ADMIN
+
+  - id: 20
+    parent_interface: vtnet1
+    description: VLAN20_USERS
+
+  - id: 30
+    parent_interface: vtnet1
+    description: VLAN30_DEVELOPMENT
+
+  - id: 40
+    parent_interface: vtnet1
+    description: VLAN40_SERVERS
+
+  - id: 60
+    parent_interface: vtnet1
+    description: VLAN60_WiFi
+  
+  - id: 70
+    parent_interface: vtnet1
+    description: VLAN70_IMPRESSION/IoT
+  
+  - id: 99
+    parent_interface: vtnet1
+    description: VLAN99_MANAGEMENT

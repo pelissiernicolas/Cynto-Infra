@@ -1,0 +1,6 @@
+# roles/apache_https/handlers/main.yml
+---
+- name: Reload Apache
+  ansible.builtin.service:
+    name: apache2
+    state: reloaded

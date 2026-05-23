@@ -1,0 +1,17 @@
+- name: Installer AD DS et DNS
+  ansible.windows.win_feature:
+    name:
+      - AD-Domain-Services
+      - DNS
+    include_management_tools: true
+    state: present
+
+- name: Promouvoir le serveur en contrôleur de domaine
+  microsoft.ad.domain_controller:
+    dns_domain_name: "{{ ad_domain_name }}"
+    domain_admin_user: "{{ ad_netbios_name }}\\{{ domain_admin_user }}"
+    domain_admin_password: "{{ vault_domain_admin_password }}"
+    safe_mode_password: "{{ vault_ad_safe_mode_password }}"
+    state: domain_controller
+    install_dns: true
+    reboot: true

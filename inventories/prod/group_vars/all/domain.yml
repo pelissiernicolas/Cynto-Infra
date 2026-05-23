@@ -1,0 +1,16 @@
+# inventories/prod/group_vars/all/domain.yml
+# Identité du domaine et paramètres globaux (forêt, compte admin, NTP).
+---
+ad_domain_name: "cynto.tech"
+ad_netbios_name: "CYNTO"
+
+ad_forest_mode: "WinThreshold"
+ad_domain_mode: "WinThreshold"
+
+domain_admin_user: "Administrateur"
+
+default_dns_suffix: "cynto.tech"
+
+ntp_servers:
+  - "0.fr.pool.ntp.org"
+  - "1.fr.pool.ntp.org"

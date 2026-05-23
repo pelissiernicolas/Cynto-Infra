@@ -1,0 +1,11 @@
+<VirtualHost *:80>
+    ServerName {{ nextcloud_domain }}
+    ServerAlias {{ server_hostname }}
+
+    RewriteEngine On
+    RewriteCond %{HTTPS} !=on
+    RewriteRule ^/?(.*) https://{{ nextcloud_domain }}/$1 [R=301,L]
+
+    ErrorLog ${APACHE_LOG_DIR}/nextcloud_http_error.log
+    CustomLog ${APACHE_LOG_DIR}/nextcloud_http_access.log combined
+</VirtualHost>

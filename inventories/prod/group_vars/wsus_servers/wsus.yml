@@ -1,0 +1,13 @@
+wsus_content_dir: "D:\\WSUS"
+
+wsus_languages:
+  - "fr"
+  - "en"
+
+wsus_products:
+  - "Windows Server 2025"
+  - "Windows 11"
+
+wsus_classifications:
+  - "Critical Updates"
+  - "Security Updates"

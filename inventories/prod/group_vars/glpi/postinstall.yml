@@ -1,0 +1,14 @@
+# inventories/prod/group_vars/glpi/glpi_postinstall.yml
+---
+glpi_admin_user: glpi
+glpi_admin_password: "{{ vault_glpi_admin_password }}"
+
+glpi_default_users:
+  - name: post-only
+    password: "{{ vault_glpi_postonly_password }}"
+  - name: tech
+    password: "{{ vault_glpi_tech_password }}"
+  - name: normal
+    password: "{{ vault_glpi_normal_password }}"
+
+glpi_timezone: Europe/Paris

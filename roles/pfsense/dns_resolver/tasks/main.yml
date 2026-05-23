@@ -1,0 +1,4 @@
+- name: Ajouter les host overrides DNS Resolver
+  pfsensible.core.pfsense_dns_resolver:
+    hosts: "{{ pfsense_dns_host_overrides }}"
+    state: present

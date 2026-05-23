@@ -1,0 +1,152 @@
+ad_ous:
+  - name: "Serveurs"
+    path: "DC=cynto,DC=tech"
+
+  - name: "Utilisateurs"
+    path: "DC=cynto,DC=tech"
+
+  - name: "Groupes"
+    path: "DC=cynto,DC=tech"
+
+  - name: "Nextcloud-Groupes"
+    path: "OU=Groupes,DC=cynto,DC=tech"
+  
+  - name: "GLPI-Groupes"
+    path: "OU=Groupes,DC=cynto,DC=tech"
+
+  - name: "ALL_Utilisateurs"
+    path: "OU=Utilisateurs,DC=cynto,DC=tech"
+
+  - name: "Admins"
+    path: "OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
+
+  - name: "Commerciaux"
+    path: "OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
+
+  - name: "Comptes de service"
+    path: "OU=Utilisateurs,DC=cynto,DC=tech"
+  
+  - name: "Postes"
+    path: "DC=cynto,DC=tech"
+
+ad_groups:
+  - name: "GG_Admins_Infra"
+    scope: "global"
+    category: "security"
+    path: "OU=Groupes,DC=cynto,DC=tech"
+
+  - name: "GG_Utilisateurs_Standard"
+    scope: "global"
+    category: "security"
+    path: "OU=Groupes,DC=cynto,DC=tech"
+
+  - name: "GG_Serveurs_Admin"
+    scope: "global"
+    category: "security"
+    path: "OU=Groupes,DC=cynto,DC=tech"
+  
+  - name: "GG_VPN_Users"
+    scope: "global"
+    category: "security"
+    path: "OU=Groupes,DC=cynto,DC=tech"
+  
+  - name: "GG_Nextcloud_Users"
+    scope: "global"
+    category: "security"
+    path: "OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech"
+  
+  - name: "GG_Nextcloud_Admins"
+    scope: "global"
+    category: "security"
+    path: "OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech"
+
+  - name: "GG_Nextcloud_50gb"
+    scope: "global"
+    category: "security"
+    path: "OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech"
+  
+  - name: "GG_Nextcloud_10gb"
+    scope: "global"
+    category: "security"
+    path: "OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech"
+
+  - name: "GG_Nextcloud_5gb"
+    scope: "global"
+    category: "security"
+    path: "OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech"
+
+### GLPI Groups
+  - name: "GG_GLPI_Admin"
+    scope: "global"
+    category: "security"
+    path: "OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech"
+  
+  - name: "GG_GLPI_Tech"
+    scope: "global"
+    category: "security"
+    path: "OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech"
+
+  - name: "GG_GLPI_Users"
+    scope: "global"
+    category: "security"
+    path: "OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech"
+
+ad_users:
+  - name: "nicolas.pelissier"
+    firstname: "Nicolas"
+    surname: "Pelissier"
+    display_name: "Nicolas Pelissier"
+    upn: "nicolas.pelissier@cynto.tech"
+    password: "{{ vault_default_user_password }}"
+    path: "OU=Admins,OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
+    enabled: true
+    password_never_expires: false
+    groups:
+      - "GG_Admins_Infra"
+      - "GG_VPN_Users"
+      - "GG_Nextcloud_Admins"
+      - "GG_Nextcloud_10gb"
+
+  - name: "svc_wsus"
+    firstname: "svc"
+    surname: "wsus"
+    display_name: "Service WSUS"
+    upn: "svc_wsus@cynto.tech"
+    password: "{{ vault_service_account_password }}"
+    path: "OU=Comptes de service,OU=Utilisateurs,DC=cynto,DC=tech"
+    enabled: true
+    password_never_expires: true
+    groups: []
+  
+  - name: "svc_nextcloud"
+    firstname: "svc"
+    surname: "nextcloud"
+    display_name: "Service Nextcloud"
+    upn: "svc_nextcloud@cynto.tech"
+    password: "{{ vault_service_account_password }}"
+    path: "OU=Comptes de service,OU=Utilisateurs,DC=cynto,DC=tech"
+    enabled: true
+    password_never_expires: true
+    groups: []
+
+  - name: "svc-glpi"
+    firstname: "svc"
+    surname: "glpi"
+    display_name: "Service GLPI"
+    upn: "svc_glpi@cynto.tech"
+    password: "{{ vault_service_account_password }}"
+    path: "OU=Comptes de service,OU=Utilisateurs,DC=cynto,DC=tech"
+    enabled: true
+    password_never_expires: true
+    groups: []
+  
+  - name: "svc_pfsense"
+    firstname: "svc"
+    surname: "pfsense"
+    display_name: "Service PFSense"
+    upn: "svc_pfsense@cynto.tech"
+    password: "{{ vault_service_account_password }}"
+    path: "OU=Comptes de service,OU=Utilisateurs,DC=cynto,DC=tech"
+    enabled: true
+    password_never_expires: true
+    groups: []

@@ -1,0 +1,35 @@
+pfsense_ip_aliases:
+  - name: VLAN10_ADMIN_NET
+    type: network
+    address: 10.8.10.0/28
+    description: Réseau administration
+
+  - name: VLAN20_USERS_NET
+    type: network
+    address: 10.8.20.0/26
+    description: Réseau utilisateurs
+
+  - name: VLAN40_SERVERS_NET
+    type: network
+    address: 10.8.40.0/27
+    description: Réseau serveurs
+
+  - name: AD_SERVERS
+    type: host
+    address: 10.8.40.10 10.8.40.11
+    description: Serveurs Active Directory
+
+  - name: NEXTCLOUD_SERVER
+    type: host
+    address: 10.8.40.13
+    description: Serveur Nextcloud
+
+  - name: GLPI_SERVER
+    type: host
+    address: 10.8.40.14
+    description: Serveur GLPI
+
+  - name: MONITORING_SERVER
+    type: host
+    address: 10.8.40.20
+    description: Prometheus Grafana

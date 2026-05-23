@@ -1,0 +1,27 @@
+- name: Autoriser OpenVPN sur le WAN
+  pfsensible.core.pfsense_rule:
+    name: WAN_ALLOW_OPENVPN
+    interface: wan
+    action: pass
+    protocol: udp
+    source: any
+    destination: "(self)"
+    destination_port: 1194
+    state: present
+
+- name: Autoriser les clients VPN vers les VLANs internes
+  pfsensible.core.pfsense_rule:
+    name: "OPENVPN_TO_{{ item.name }}"
+    interface: OpenVPN
+    action: pass
+    protocol: any
+    source: 10.8.200.0/24
+    destination: "{{ item.destination }}"
+    state: present
+  loop:
+    - name: VLAN10_ADMIN
+      destination: VLAN10_ADMIN_NET
+    - name: VLAN20_USERS
+      destination: VLAN20_USERS_NET
+    - name: VLAN40_SERVERS
+      destination: VLAN40_SERVERS_NET

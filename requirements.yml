@@ -1,0 +1,17 @@
+# requirements.yml
+# Collections Ansible requises par l'infrastructure Cynto fusionnée.
+# Installation : ansible-galaxy collection install -r requirements.yml
+---
+collections:
+  # Active Directory / Windows
+  - name: ansible.windows
+  - name: community.windows
+  - name: microsoft.ad
+
+  # Serveurs Linux (Nextcloud, GLPI)
+  - name: community.general      # timezone, divers
+  - name: community.mysql        # MariaDB (rôle partagé mariadb, nextcloud, glpi)
+  - name: community.crypto       # certificats / clés (LDAPS, HTTPS internes)
+
+  # Pare-feu
+  - name: pfsensible.core        # configuration pfSense

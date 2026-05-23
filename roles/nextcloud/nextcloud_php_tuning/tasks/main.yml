@@ -1,0 +1,16 @@
+- name: Vérifier la version PHP installée
+  ansible.builtin.command: php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;'
+  register: php_version_cmd
+  changed_when: false
+
+- name: Définir le chemin php.ini Apache
+  ansible.builtin.set_fact:
+    php_apache_ini: "/etc/php/{{ php_version_cmd.stdout }}/apache2/php.ini"
+
+- name: Régler opcache.interned_strings_buffer
+  ansible.builtin.lineinfile:
+    path: "{{ php_apache_ini }}"
+    regexp: '^;?\s*opcache\.interned_strings_buffer\s*='
+    line: "opcache.interned_strings_buffer={{ php_opcache_interned_strings_buffer }}"
+    state: present
+  notify: Restart Apache

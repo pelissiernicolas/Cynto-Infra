@@ -1,0 +1,173 @@
+- name: Installer le rôle AD CS CA
+  ansible.windows.win_feature:
+    name: Adcs-Cert-Authority
+    include_management_tools: true
+    state: present
+
+- name: Installer le rôle RSAT AD CS
+  ansible.windows.win_feature:
+    name: RSAT-ADCS
+    state: present
+  failed_when: false
+
+- name: Configurer une Enterprise Root CA
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      Import-Module ADCSDeployment
+
+      $caReg = Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\CertSvc\Configuration' -ErrorAction SilentlyContinue
+      if ($caReg -and $caReg.Active) {
+        Write-Output "ADCS_ALREADY_CONFIGURED"
+        return
+      }
+
+      Install-AdcsCertificationAuthority `
+        -CAType EnterpriseRootCa `
+        -CACommonName "{{ ad_ca_common_name }}" `
+        -CADistinguishedNameSuffix "{{ ad_ca_dn_suffix }}" `
+        -CryptoProviderName "RSA#Microsoft Software Key Storage Provider" `
+        -HashAlgorithmName SHA256 `
+        -KeyLength 2048 `
+        -ValidityPeriod Years `
+        -ValidityPeriodUnits {{ ad_ca_validity_years }} `
+        -Force
+
+      Write-Output "ADCS_CONFIGURED"
+  register: adcs_config
+
+- name: Créer le dossier d'export
+  ansible.windows.win_file:
+    path: "{{ ad_ca_export_dir }}"
+    state: directory
+
+- name: Vérifier que la CA répond
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      certutil -ping | Out-Null
+      Write-Output "CA_OK"
+  register: ca_ping
+
+- name: Vérifier la configuration de la CA
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      certutil -config "{{ ad_ca_config_string }}" -ping | Out-Null
+      Write-Output "CA_CONFIG_OK"
+  register: ca_config_check
+
+- name: Publier le template Kerberos Authentication pour le CA
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      Import-Module ADCSAdministration
+      $tpl = Get-CATemplate | Select-Object -ExpandProperty Name
+      if ($tpl -contains "KerberosAuthentication") {
+        Write-Output "TEMPLATE_ALREADY_PUBLISHED"
+      } else {
+        Add-CATemplate -Name "KerberosAuthentication"
+        Write-Output "TEMPLATE_PUBLISHED"
+      }
+  register: publish_template
+
+- name: Demander un certificat LDAPS pour le DC
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      $existing = Get-ChildItem Cert:\LocalMachine\My |
+        Where-Object {
+          $_.Subject -match "CN={{ ad_dc_fqdn }}" -and
+          $_.EnhancedKeyUsageList.ObjectId -contains "1.3.6.1.5.5.7.3.1"
+        }
+
+      if ($existing) {
+        Write-Output "DC_CERT_ALREADY_PRESENT"
+        return
+      }
+
+      $inf = @"
+      [Version]
+      Signature="$Windows NT$"
+
+      [NewRequest]
+      Subject = "CN={{ ad_dc_fqdn }}"
+      MachineKeySet = TRUE
+      KeyLength = 2048
+      Exportable = TRUE
+      KeySpec = 1
+      KeyUsage = 0xa0
+      ProviderName = "Microsoft RSA SChannel Cryptographic Provider"
+      RequestType = PKCS10
+      HashAlgorithm = sha256
+
+      [Extensions]
+      2.5.29.17 = "{text}"
+      _continue_ = "dns={{ ad_dc_fqdn }}"
+
+      [RequestAttributes]
+      CertificateTemplate = KerberosAuthentication
+      "@
+
+      $req = "$env:TEMP\ldaps.req.inf"
+      $csr = "$env:TEMP\ldaps.req"
+      $cer = "$env:TEMP\ldaps.cer"
+
+      $inf | Out-File -FilePath $req -Encoding ascii
+      certreq -new $req $csr | Out-Null
+      certreq -submit -config "{{ ad_ca_config_string }}" $csr $cer | Out-Null
+      certreq -accept $cer | Out-Null
+
+      Write-Output "DC_CERT_INSTALLED"
+  register: dc_cert_request
+
+- name: Exporter explicitement le certificat racine de la CA
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      $ca = Get-ChildItem Cert:\LocalMachine\CA | Where-Object {
+        $_.Subject -match "CN={{ ad_ca_common_name }}"
+      } | Select-Object -First 1
+
+      if (-not $ca) {
+        throw "Certificat CA {{ ad_ca_common_name }} introuvable dans LocalMachine\CA"
+      }
+
+      Export-Certificate -Cert $ca -FilePath "{{ ad_ca_cert_export_path }}" -Force | Out-Null
+      Write-Output "{{ ad_ca_cert_export_path }}"
+  register: ca_export
+
+- name: Afficher le certificat CA exporté
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      $ca = Get-ChildItem Cert:\LocalMachine\CA | Where-Object {
+        $_.Subject -match "CN={{ ad_ca_common_name }}"
+      } | Select-Object Subject, Issuer, Thumbprint
+      $ca
+  register: ca_debug
+
+- name: Vérifier le certificat LDAPS du DC
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      $certs = Get-ChildItem Cert:\LocalMachine\My | Where-Object {
+        $_.EnhancedKeyUsageList.ObjectId -contains "1.3.6.1.5.5.7.3.1"
+      }
+
+      $certs | Select-Object Subject, Thumbprint, HasPrivateKey,
+        @{Name='SAN';Expression={$_.DnsNameList -join ','}},
+        @{Name='EKU';Expression={($_.EnhancedKeyUsageList | ForEach-Object {$_.FriendlyName}) -join ','}}
+  register: dc_ldaps_certs
+
+- name: Vérifier la clé privée du certificat LDAPS
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      certutil -verifykeys | Out-String
+  register: verifykeys_output
+
+- name: Redémarrer le contrôleur de domaine
+  ansible.windows.win_reboot:
+    reboot_timeout: 1800
+    msg: "Redémarrage après configuration AD CS / LDAPS"

@@ -1,0 +1,7 @@
+- name: Importer la CA AD dans pfSense
+  pfsensible.core.pfsense_ca:
+    name: "{{ pfsense_ad_ca.name }}"
+    method: existing
+    certificate: "{{ lookup('file', pfsense_ad_ca.local_path) }}"
+    trust: true
+    state: present

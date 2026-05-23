@@ -1,0 +1,247 @@
+- name: Installer les paquets nécessaires
+  ansible.builtin.apt:
+    name:
+      - apache2
+      - mariadb-server
+      - redis-server
+      - unzip
+      - bzip2
+      - curl
+      - wget
+      - tar
+      - imagemagick
+      - libapache2-mod-php
+      - php
+      - php-cli
+      - php-common
+      - php-gd
+      - php-mysql
+      - php-curl
+      - php-mbstring
+      - php-intl
+      - php-gmp
+      - php-bcmath
+      - php-xml
+      - php-zip
+      - php-imagick
+      - php-redis
+      - php-apcu
+      - python3-pymysql
+    state: present
+    update_cache: true
+
+- name: Démarrer et activer les services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - apache2
+    - mariadb
+    - redis-server
+
+- name: Créer la base Nextcloud
+  community.mysql.mysql_db:
+    name: "{{ nextcloud_db_name }}"
+    state: present
+    login_unix_socket: /run/mysqld/mysqld.sock
+    check_implicit_admin: true
+
+- name: Créer l'utilisateur DB Nextcloud
+  community.mysql.mysql_user:
+    name: "{{ nextcloud_db_user }}"
+    password: "{{ vault_nextcloud_db_password }}"
+    priv: "{{ nextcloud_db_name }}.*:ALL"
+    host: localhost
+    state: present
+    login_unix_socket: /run/mysqld/mysqld.sock
+    check_implicit_admin: true
+
+- name: Créer le dossier data
+  ansible.builtin.file:
+    path: "{{ nextcloud_data_dir }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0750"
+
+- name: Télécharger la dernière archive Nextcloud
+  ansible.builtin.unarchive:
+    src: "https://download.nextcloud.com/server/releases/latest.tar.bz2"
+    dest: /var/www/
+    remote_src: true
+    creates: "{{ nextcloud_web_root }}/version.php"
+    owner: www-data
+    group: www-data
+
+- name: Forcer les bons droits sur Nextcloud
+  ansible.builtin.file:
+    path: "{{ nextcloud_web_root }}"
+    state: directory
+    recurse: true
+    owner: www-data
+    group: www-data
+
+- name: Vérifier la version PHP installée
+  ansible.builtin.command: php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;'
+  register: php_version_cmd
+  changed_when: false
+
+- name: Définir le chemin php.ini Apache
+  ansible.builtin.set_fact:
+    php_apache_ini: "/etc/php/{{ php_version_cmd.stdout }}/apache2/php.ini"
+
+- name: Configurer PHP memory_limit
+  ansible.builtin.lineinfile:
+    path: "{{ php_apache_ini }}"
+    regexp: '^memory_limit ='
+    line: "memory_limit = {{ php_memory_limit }}"
+  notify: Restart Apache
+
+- name: Configurer PHP upload_max_filesize
+  ansible.builtin.lineinfile:
+    path: "{{ php_apache_ini }}"
+    regexp: '^upload_max_filesize ='
+    line: "upload_max_filesize = {{ php_upload_max_filesize }}"
+  notify: Restart Apache
+
+- name: Configurer PHP post_max_size
+  ansible.builtin.lineinfile:
+    path: "{{ php_apache_ini }}"
+    regexp: '^post_max_size ='
+    line: "post_max_size = {{ php_post_max_size }}"
+  notify: Restart Apache
+
+- name: Configurer PHP max_execution_time
+  ansible.builtin.lineinfile:
+    path: "{{ php_apache_ini }}"
+    regexp: '^max_execution_time ='
+    line: "max_execution_time = {{ php_max_execution_time }}"
+  notify: Restart Apache
+
+- name: Déployer le vhost Apache Nextcloud
+  ansible.builtin.template:
+    src: apache-nextcloud.conf.j2
+    dest: /etc/apache2/sites-available/nextcloud.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Apache
+
+- name: Activer les modules Apache nécessaires
+  ansible.builtin.command: "a2enmod {{ item }}"
+  loop:
+    - rewrite
+    - headers
+    - env
+    - dir
+    - mime
+    - ssl
+  register: a2enmod_result
+  changed_when: "'already enabled' not in a2enmod_result.stdout"
+
+- name: Désactiver le site par défaut
+  ansible.builtin.command: a2dissite 000-default.conf
+  register: a2dissite_result
+  changed_when: "'Site 000-default disabled' in a2dissite_result.stdout"
+  failed_when: false
+  notify: Reload Apache
+
+- name: Activer le site Nextcloud
+  ansible.builtin.command: a2ensite nextcloud.conf
+  register: a2ensite_result
+  changed_when: "'Enabling site nextcloud' in a2ensite_result.stdout"
+  notify: Reload Apache
+
+- name: Vérifier si Nextcloud est déjà installé
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ status
+  register: nextcloud_status
+  failed_when: false
+  changed_when: false
+
+- name: Installer Nextcloud en ligne de commande
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ maintenance:install
+    --database mysql
+    --database-name {{ nextcloud_db_name }}
+    --database-user {{ nextcloud_db_user }}
+    --database-pass {{ vault_nextcloud_db_password }}
+    --admin-user {{ vault_nextcloud_admin_user }}
+    --admin-pass {{ vault_nextcloud_admin_password }}
+    --data-dir {{ nextcloud_data_dir }}
+  when: "'installed: true' not in nextcloud_status.stdout"
+
+- name: Re-vérifier le statut Nextcloud
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ status
+  register: nextcloud_status_after
+  changed_when: false
+
+- name: Ajouter trusted domain 1
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set trusted_domains 0 --value="{{ nextcloud_domain }}"
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Ajouter trusted domain 2
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set trusted_domains 1 --value="{{ server_hostname }}"
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Ajouter trusted domain 3
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set trusted_domains 2 --value="{{ server_ip_cidr.split('/')[0] }}"
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Définir overwrite.cli.url
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set overwrite.cli.url --value="http://{{ nextcloud_domain }}"
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Définir le pays par défaut
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set default_phone_region --value="FR"
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Activer APCu
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set memcache.local --value='\OC\Memcache\APCu'
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Activer Redis pour le locking
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set memcache.locking --value='\OC\Memcache\Redis'
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Définir l'hôte Redis
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set redis host --value="{{ redis_socket }}"
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Définir le port Redis socket
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set redis port --type=integer --value=0
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Régler le mode cron
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ background:cron
+  when: "'installed: true' in nextcloud_status_after.stdout"
+  changed_when: false
+
+- name: Ajouter le cron système Nextcloud
+  ansible.builtin.cron:
+    name: "Nextcloud cron"
+    user: www-data
+    minute: "*/5"
+    job: "php -f {{ nextcloud_web_root }}/cron.php"
+
+- name: Vérifier la syntaxe Apache
+  ansible.builtin.command: apache2ctl configtest
+  changed_when: false

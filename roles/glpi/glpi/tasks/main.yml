@@ -1,0 +1,69 @@
+# roles/glpi/tasks/main.yml
+---
+- name: Installer les dépendances nécessaires
+  ansible.builtin.apt:
+    name:
+      - wget
+      - tar
+      - unzip
+      - curl
+    state: present
+    update_cache: true
+
+- name: Télécharger GLPI
+  ansible.builtin.get_url:
+    url: "{{ glpi_archive_url }}"
+    dest: "/tmp/glpi-{{ glpi_version }}.tgz"
+    mode: "0644"
+
+- name: Décompresser GLPI dans /var/www
+  ansible.builtin.unarchive:
+    src: "/tmp/glpi-{{ glpi_version }}.tgz"
+    dest: "{{ glpi_web_root }}"
+    remote_src: true
+    creates: "{{ glpi_install_dir }}/public/index.php"
+
+- name: Donner les droits à www-data
+  ansible.builtin.file:
+    path: "{{ glpi_install_dir }}"
+    owner: www-data
+    group: www-data
+    recurse: true
+
+- name: Déployer le VirtualHost Apache GLPI
+  ansible.builtin.template:
+    src: glpi.conf.j2
+    dest: "/etc/apache2/sites-available/{{ glpi_apache_conf }}"
+    mode: "0644"
+  notify: Redémarrer Apache
+
+- name: Désactiver le site Apache par défaut
+  ansible.builtin.command: a2dissite 000-default.conf
+  args:
+    removes: /etc/apache2/sites-enabled/000-default.conf
+  notify: Redémarrer Apache
+
+- name: Activer le site GLPI
+  ansible.builtin.command: "a2ensite {{ glpi_apache_conf }}"
+  args:
+    creates: "/etc/apache2/sites-enabled/{{ glpi_apache_conf }}"
+  notify: Redémarrer Apache
+
+- name: Activer le module rewrite
+  ansible.builtin.command: a2enmod rewrite
+  args:
+    creates: /etc/apache2/mods-enabled/rewrite.load
+  notify: Redémarrer Apache
+
+- name: Installer GLPI en ligne de commande
+  ansible.builtin.command: >
+    sudo -u www-data php bin/console db:install
+    --db-host=localhost
+    --db-name={{ glpi_db_name }}
+    --db-user={{ glpi_db_user }}
+    --db-password={{ glpi_db_password }}
+    --default-language=fr_FR
+    --no-interaction
+  args:
+    chdir: "{{ glpi_install_dir }}"
+    creates: "{{ glpi_install_dir }}/config/config_db.php"

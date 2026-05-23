@@ -1,0 +1,138 @@
+- name: Installer Redis
+  ansible.builtin.apt:
+    name:
+      - redis-server
+      - php-redis
+    state: present
+    update_cache: true
+
+- name: Configurer Redis avec socket Unix
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^#? unixsocket ', line: 'unixsocket /var/run/redis/redis-server.sock' }
+    - { regexp: '^#? unixsocketperm ', line: 'unixsocketperm 770' }
+  notify: Restart Redis
+
+- name: Ajouter www-data au groupe redis
+  ansible.builtin.user:
+    name: www-data
+    groups: redis
+    append: true
+  notify: Restart Apache
+
+- name: Démarrer Redis
+  ansible.builtin.service:
+    name: redis-server
+    state: started
+    enabled: true
+
+- name: Redémarrer Redis pour appliquer le socket Unix
+  ansible.builtin.service:
+    name: redis-server
+    state: restarted
+
+- name: Redémarrer Apache pour recharger les groupes de www-data
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+
+- name: Vérifier que le socket Redis existe
+  ansible.builtin.stat:
+    path: /var/run/redis/redis-server.sock
+  register: redis_socket_stat
+
+- name: Échouer si le socket Redis est absent
+  ansible.builtin.assert:
+    that:
+      - redis_socket_stat.stat.exists
+    fail_msg: "Le socket Redis /var/run/redis/redis-server.sock est absent."
+
+- name: Lister les utilisateurs Nextcloud
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - user:list
+      - --output=json
+  register: nc_users
+  changed_when: false
+
+- name: Convertir la liste utilisateurs
+  ansible.builtin.set_fact:
+    nextcloud_users_list: "{{ nc_users.stdout | from_json | dict2items | map(attribute='key') | list }}"
+
+- name: Lire les infos des utilisateurs
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - user:info
+      - "{{ item }}"
+      - --output=json
+  loop: "{{ nextcloud_users_list }}"
+  register: nc_users_info
+  changed_when: false
+
+- name: Appliquer les quotas selon les groupes
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - user:setting
+      - "{{ item.0.item }}"
+      - files
+      - quota
+      - "{{ item.1.quota }}"
+  loop: "{{ nc_users_info.results | product(nextcloud_quota_rules) | list }}"
+  when: item.1.group in ((item.0.stdout | from_json).groups | default([]))
+  changed_when: false
+
+- name: Ajouter les admins Nextcloud selon le groupe AD
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - group:adduser
+      - admin
+      - "{{ item.item }}"
+  loop: "{{ nc_users_info.results }}"
+  when:
+    - (item.stdout | from_json).backend == "LDAP"
+    - nextcloud_admin_group in ((item.stdout | from_json).groups | default([]))
+    - "'admin' not in ((item.stdout | from_json).groups | default([]))"
+  changed_when: false
+  failed_when: false
+
+- name: Retirer les admins Nextcloud qui ne sont plus dans le groupe AD admin
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - group:removeuser
+      - admin
+      - "{{ item.item }}"
+  loop: "{{ nc_users_info.results }}"
+  when:
+    - (item.stdout | from_json).backend == "LDAP"
+    - "'admin' in ((item.stdout | from_json).groups | default([]))"
+    - nextcloud_admin_group not in ((item.stdout | from_json).groups | default([]))
+  changed_when: false
+  failed_when: false

@@ -1,0 +1,29 @@
+- name: Définir le hostname
+  ansible.builtin.hostname:
+    name: "{{ server_hostname }}"
+
+- name: Mettre à jour /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ server_ip_cidr.split('/')[0] }} {{ server_fqdn }} {{ server_hostname }}"
+    regexp: "^{{ server_ip_cidr.split('/')[0] }}\\s+"
+    state: present
+
+- name: Configurer le timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Déployer la configuration netplan
+  ansible.builtin.template:
+    src: 50-cloud-init.yaml.j2
+    dest: /etc/netplan/50-cloud-init.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Apply netplan
+
+- name: Mise à jour APT
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: dist
+    lock_timeout: 300

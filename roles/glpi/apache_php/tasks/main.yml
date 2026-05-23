@@ -1,0 +1,27 @@
+# roles/apache_php/tasks/main.yml
+---
+- name: Installer Apache et PHP
+  ansible.builtin.apt:
+    name: "{{ php_packages }}"
+    state: present
+    update_cache: true
+
+- name: Activer le module rewrite Apache
+  ansible.builtin.command: a2enmod rewrite
+  args:
+    creates: /etc/apache2/mods-enabled/rewrite.load
+  notify: Redémarrer Apache
+
+- name: Démarrer et activer Apache
+  ansible.builtin.service:
+    name: apache2
+    state: started
+    enabled: true
+
+- name: Activer session.cookie_secure pour HTTPS
+  ansible.builtin.lineinfile:
+    path: "/etc/php/{{ php_version }}/apache2/php.ini"
+    regexp: '^;?session\.cookie_secure\s*='
+    line: "session.cookie_secure = {{ php_session_cookie_secure }}"
+    backup: true
+  notify: Redémarrer Apache

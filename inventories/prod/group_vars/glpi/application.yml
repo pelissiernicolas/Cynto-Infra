@@ -1,0 +1,11 @@
+# inventories/prod/group_vars/glpi/glpi.yml
+---
+glpi_version: "11.0.6"
+glpi_archive_url: "https://github.com/glpi-project/glpi/releases/download/{{ glpi_version }}/glpi-{{ glpi_version }}.tgz"
+
+glpi_web_root: /var/www
+glpi_install_dir: /var/www/glpi
+glpi_public_dir: /var/www/glpi/public
+
+glpi_server_name: srv-glpi.cynto.tech
+glpi_apache_conf: glpi.conf

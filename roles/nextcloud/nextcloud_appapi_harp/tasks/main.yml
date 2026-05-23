@@ -1,0 +1,142 @@
+- name: Créer un venv Python pour Docker SDK
+  ansible.builtin.command:
+    cmd: python3 -m venv /opt/ansible-docker-venv
+    creates: /opt/ansible-docker-venv/bin/python
+
+- name: Installer Docker SDK compatible dans le venv
+  ansible.builtin.pip:
+    name:
+      - docker==7.1.0
+      - requests==2.31.0
+      - urllib3==2.2.3
+    virtualenv: /opt/ansible-docker-venv
+
+- name: Supprimer le SDK Docker Ubuntu incompatible
+  ansible.builtin.apt:
+    name: python3-docker
+    state: absent
+
+- name: Démarrer et activer Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Vérifier si Nextcloud est installé
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ status
+  register: nextcloud_status_harp
+  changed_when: false
+  failed_when: false
+
+- name: Vérifier les apps Nextcloud
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ app:list
+  register: nextcloud_apps_list_harp
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_harp.stdout"
+
+- name: Installer AppAPI si absente
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ app:install app_api
+  register: appapi_install_harp
+  failed_when: false
+  changed_when: "'installed' in (appapi_install_harp.stdout | lower)"
+  when:
+    - "'installed: true' in nextcloud_status_harp.stdout"
+    - "'app_api:' not in nextcloud_apps_list_harp.stdout"
+
+- name: Activer AppAPI si nécessaire
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ app:enable app_api
+  register: appapi_enable_harp
+  failed_when: false
+  changed_when: "'enabled' in (appapi_enable_harp.stdout | lower)"
+  when:
+    - "'installed: true' in nextcloud_status_harp.stdout"
+    - "'app_api:' in nextcloud_apps_list_harp.stdout"
+
+- name: Créer le dossier local des certificats HaRP
+  ansible.builtin.file:
+    path: /opt/nextcloud-harp/certs
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Déployer le conteneur HaRP
+  community.docker.docker_container:
+    docker_host: unix:///var/run/docker.sock
+    name: "{{ harp_container_name }}"
+    image: "{{ harp_image }}"
+    hostname: "{{ harp_container_name }}"
+    pull: true
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ harp_exapps_http_bind }}"
+      - "{{ harp_frp_bind }}"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/opt/nextcloud-harp/certs:/certs"
+    env:
+      HP_SHARED_KEY: "{{ vault_harp_shared_key }}"
+      NC_INSTANCE_URL: "{{ nextcloud_url }}"
+      HP_LOG_LEVEL: info
+      HP_VERBOSE_START: "0"
+      HP_TRUSTED_PROXY_IPS: "127.0.0.1/32,::1/128"
+  vars:
+    ansible_python_interpreter: /opt/ansible-docker-venv/bin/python
+
+- name: Lister les daemons AppAPI existants
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ app_api:daemon:list
+  register: appapi_daemon_list_harp
+  changed_when: false
+  failed_when: false
+  when: "'installed: true' in nextcloud_status_harp.stdout"
+
+- name: Supprimer l'ancien daemon DSP
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ app_api:daemon:unregister docker_proxy_local
+  failed_when: false
+  changed_when: false
+  when:
+    - "'installed: true' in nextcloud_status_harp.stdout"
+    - "'docker_proxy_local' in appapi_daemon_list_harp.stdout"
+
+- name: Supprimer l'ancien daemon DSP local socket
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ app_api:daemon:unregister docker_local_sock
+  failed_when: false
+  changed_when: false
+  when:
+    - "'installed: true' in nextcloud_status_harp.stdout"
+    - "'docker_local_sock' in appapi_daemon_list_harp.stdout"
+
+- name: Supprimer l'ancien daemon docker_local
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ app_api:daemon:unregister docker_local
+  failed_when: false
+  changed_when: false
+  when:
+    - "'installed: true' in nextcloud_status_harp.stdout"
+    - "'docker_local' in appapi_daemon_list_harp.stdout"
+
+- name: Supprimer l'ancien daemon HaRP si déjà présent
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ app_api:daemon:unregister {{ appapi_harp_daemon_name }}
+  failed_when: false
+  changed_when: false
+  when:
+    - "'installed: true' in nextcloud_status_harp.stdout"
+    - appapi_harp_daemon_name in appapi_daemon_list_harp.stdout
+
+- name: Enregistrer le daemon HaRP par défaut
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ app_api:daemon:register
+    --harp
+    --net {{ appapi_harp_network }}
+    --harp_shared_key {{ vault_harp_shared_key }}
+    --harp_frp_address 127.0.0.1:8782
+    --set-default
+    {{ appapi_harp_daemon_name }}
+    "{{ appapi_harp_daemon_display_name }}"
+    {{ appapi_harp_deploy_type }}
+    {{ appapi_harp_protocol }}
+    {{ appapi_harp_host }}
+    {{ nextcloud_url }}
+  register: register_harp_daemon
+  changed_when: register_harp_daemon.rc == 0
+  when: "'installed: true' in nextcloud_status_harp.stdout"

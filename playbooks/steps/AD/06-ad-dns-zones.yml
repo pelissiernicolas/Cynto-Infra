@@ -1,0 +1,7 @@
+- name: Création des zones DNS Active Directory
+  hosts: primary_dc
+  gather_facts: false
+  tasks:
+    - import_role:
+        name: ad_dns
+        tasks_from: zones.yml

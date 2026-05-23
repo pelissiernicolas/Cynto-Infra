@@ -1,0 +1,11 @@
+- name: Configuration réseau Windows
+  hosts: domain_controllers
+  gather_facts: false
+  roles:
+    - win_network
+    
+  post_tasks:
+    - name: Attendre le retour de la connexion WinRM
+      ansible.builtin.wait_for_connection:
+        delay: 10
+        timeout: 120

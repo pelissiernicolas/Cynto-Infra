@@ -1,0 +1,15 @@
+network:
+  version: 2
+  ethernets:
+    {{ netplan_interface }}:
+      dhcp4: false
+      addresses:
+        - {{ server_ip_cidr }}
+      routes:
+        - to: default
+          via: {{ server_gateway }}
+      nameservers:
+        addresses:
+{% for dns in server_dns %}
+          - {{ dns }}
+{% endfor %}

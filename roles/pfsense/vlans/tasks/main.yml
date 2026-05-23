@@ -1,0 +1,7 @@
+- name: Créer les VLANs
+  pfsensible.core.pfsense_vlan:
+    interface: "{{ item.parent_interface }}"
+    vlan_id: "{{ item.id }}"
+    descr: "{{ item.description }}"
+    state: present
+  loop: "{{ pfsense_vlans }}"

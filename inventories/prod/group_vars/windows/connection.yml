@@ -1,0 +1,9 @@
+# inventories/prod/group_vars/windows/connection.yml
+# Paramètres de connexion WinRM pour tous les hôtes Windows.
+---
+ansible_connection: winrm
+ansible_user: Administrateur
+ansible_password: "{{ vault_windows_admin_password }}"
+ansible_port: 5985
+ansible_winrm_transport: basic
+ansible_winrm_server_cert_validation: ignore

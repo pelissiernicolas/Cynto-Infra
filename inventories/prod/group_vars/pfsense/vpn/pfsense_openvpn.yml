@@ -1,0 +1,46 @@
+pfsense_openvpn_ca:
+  name: CYNTO-OPENVPN-CA
+  method: internal
+  keylen: "2048"
+  lifetime: 3650
+  dn_country: FR
+  dn_city: Toulouse
+  dn_organization: Cynto
+  dn_organizationalunit: IT
+  dn_commonname: CYNTO-OPENVPN-CA
+
+pfsense_openvpn_cert:
+  name: CYNTO-OPENVPN-SERVER
+  ca: CYNTO-OPENVPN-CA
+  method: internal
+  certtype: server
+  keylen: "2048"
+  lifetime: "3650"
+  dn_country: FR
+  dn_city: Toulouse
+  dn_organization: Cynto
+  dn_organizationalunit: IT
+  altnames: "DNS:pfsense.cynto.tech,IP:192.168.1.179"
+
+pfsense_openvpn:
+  name: VPN_CYNTO_AD
+  mode: server_tls_user
+  protocol: UDP4
+  interface: wan
+  local_port: 1194
+  ca: CYNTO-OPENVPN-CA
+  cert: CYNTO-OPENVPN-SERVER
+  authmode:
+    - AD-LDAP-01
+    - AD-LDAP-02
+  tunnel_network: 10.8.200.0/24
+  local_network: "10.8.10.0/24,10.8.20.0/24,10.8.40.0/27"
+  dns_domain: cynto.tech
+  dns_server1: 10.8.40.10
+  dns_server2: 10.8.40.11
+  topology: subnet
+  tls: generate
+  tls_type: auth
+  compression: ""
+  allow_compression: "no"
+  verbosity_level: 3

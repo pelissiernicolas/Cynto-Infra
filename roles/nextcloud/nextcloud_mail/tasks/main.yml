@@ -1,0 +1,200 @@
+- name: Vérifier si Nextcloud est installé
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - status
+  register: nextcloud_status_mail
+  changed_when: false
+  failed_when: false
+
+- name: Définir l'email de l'utilisateur admin Nextcloud
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - user:setting
+      - "{{ nextcloud_admin_user }}"
+      - settings
+      - email
+      - "{{ nextcloud_admin_email }}"
+  changed_when: false
+
+- name: Définir le mode SMTP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtpmode
+      - --value={{ nextcloud_mail_smtpmode }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir l'hôte SMTP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtphost
+      - --value={{ nextcloud_mail_smtphost }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir le port SMTP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtpport
+      - --type=integer
+      - --value={{ nextcloud_mail_smtpport | string }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir le chiffrement SMTP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtpsecure
+      - --value={{ nextcloud_mail_smtpsecure }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir l'authentification SMTP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtpauth
+      - --type=integer
+      - --value={{ nextcloud_mail_smtpauth | string }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir le type d'authentification SMTP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtpauthtype
+      - --value={{ nextcloud_mail_smtpauthtype }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir l'utilisateur SMTP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtpname
+      - --value={{ nextcloud_mail_smtpname }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir le mot de passe SMTP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtppassword
+      - --value={{ vault_nextcloud_mail_smtppassword }}
+  changed_when: false
+  no_log: true
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir le timeout SMTP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtptimeout
+      - --type=integer
+      - --value={{ nextcloud_mail_smtptimeout | string }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir l'adresse d'expéditeur
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_from_address
+      - --value={{ nextcloud_mail_from_address }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Définir le domaine d'expéditeur
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_domain
+      - --value={{ nextcloud_mail_domain }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"
+
+- name: Activer le mode debug SMTP à false
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - mail_smtpdebug
+      - --type=boolean
+      - --value=false
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_mail.stdout"

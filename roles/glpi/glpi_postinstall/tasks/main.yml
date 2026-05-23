@@ -1,0 +1,73 @@
+---
+- name: Générer le hash du mot de passe admin GLPI
+  ansible.builtin.command: >
+    php -r 'echo password_hash("{{ glpi_admin_password }}", PASSWORD_DEFAULT);'
+  register: glpi_admin_password_hash
+  changed_when: false
+  no_log: true
+
+- name: Changer le mot de passe admin GLPI en base de données
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: >
+      UPDATE glpi_users
+      SET password = '{{ glpi_admin_password_hash.stdout }}'
+      WHERE name = '{{ glpi_admin_user }}';
+  no_log: true
+
+- name: Changer les mots de passe des comptes par défaut GLPI
+  block:
+
+    - name: Générer les hash des mots de passe
+      ansible.builtin.command: >
+        php -r 'echo password_hash("{{ item.password }}", PASSWORD_DEFAULT);'
+      register: glpi_users_hash
+      loop: "{{ glpi_default_users }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: false
+      no_log: false
+
+    - name: Mettre à jour les mots de passe en base
+      community.mysql.mysql_query:
+        login_unix_socket: /run/mysqld/mysqld.sock
+        login_db: "{{ glpi_db_name }}"
+        query: >
+          UPDATE glpi_users
+          SET password = '{{ item.stdout }}'
+          WHERE name = '{{ item.item.name }}';
+      loop: "{{ glpi_users_hash.results }}"
+      no_log: true
+
+- name: Supprimer le fichier install.php
+  ansible.builtin.file:
+    path: "{{ glpi_install_dir }}/install/install.php"
+    state: absent
+
+- name: Sécuriser les droits du dossier GLPI
+  ansible.builtin.file:
+    path: "{{ glpi_install_dir }}"
+    owner: www-data
+    group: www-data
+    mode: "0755"
+    recurse: true
+
+- name: Configurer le fuseau horaire GLPI
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: >
+      UPDATE glpi_configs
+      SET value = '{{ glpi_timezone }}'
+      WHERE name = 'timezone';
+
+- name: Activer l'inventaire GLPI
+  community.mysql.mysql_query:
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_db: "{{ glpi_db_name }}"
+    query: |
+      UPDATE glpi_configs
+      SET value = '1'
+      WHERE context = 'inventory'
+      AND name = 'enabled_inventory';

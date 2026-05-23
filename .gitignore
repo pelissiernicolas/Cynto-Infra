@@ -1,0 +1,40 @@
+# OS / Éditeur
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Artefacts d'exécution Ansible
+*.retry
+*.log
+ansible.log
+.ansible/
+
+# Secrets / Vault
+*.vault
+.vault_pass*
+vault_pass*
+vault.yml
+
+# Artefacts CA AD récupérés à l'exécution
+playbooks/artifacts/
+cynto-root-ca.cer
+cynto-root-ca.pem
+
+# Flux ADS Windows (parasites)
+*:Zone.Identifier
+
+# Python (outillage local éventuel)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Caches de test
+.pytest_cache/
+.mypy_cache/
+.cache/

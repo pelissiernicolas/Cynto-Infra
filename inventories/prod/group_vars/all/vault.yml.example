@@ -1,0 +1,43 @@
+# inventories/prod/group_vars/all/vault.yml.example
+# -----------------------------------------------------------------------------
+# MODÈLE de fichier Vault. Copiez-le en `vault.yml` puis chiffrez-le :
+#
+#   cp inventories/prod/group_vars/all/vault.yml.example \
+#      inventories/prod/group_vars/all/vault.yml
+#   ansible-vault encrypt inventories/prod/group_vars/all/vault.yml
+#
+# (Éditer ensuite avec : ansible-vault edit inventories/prod/group_vars/all/vault.yml)
+# Le fichier `vault.yml` est ignoré par git (.gitignore). Ne committez jamais de secret en clair.
+# -----------------------------------------------------------------------------
+---
+# --- Connexions / comptes communs ---
+vault_windows_admin_password: "CHANGEME"     # Administrateur des serveurs Windows (WinRM)
+vault_ansible_ssh_password: "CHANGEME"        # mot de passe SSH des serveurs Linux (Nextcloud, GLPI)
+vault_ansible_become_password: "CHANGEME"     # mot de passe sudo des serveurs Linux
+
+# --- Active Directory ---
+vault_ad_safe_mode_password: "CHANGEME"       # mot de passe DSRM (Safe Mode)
+vault_domain_admin_password: "CHANGEME"       # admin du domaine
+vault_default_user_password: "CHANGEME"       # mot de passe initial des utilisateurs créés
+vault_service_account_password: "CHANGEME"    # comptes de service (svc_*)
+
+# --- pfSense ---
+vault_ldap_password: "CHANGEME"               # bind LDAP du compte de service pfSense
+ansible_become_password: "CHANGEME"
+
+# --- MariaDB (Nextcloud + GLPI) ---
+vault_mariadb_root_password: "CHANGEME"
+
+# --- Nextcloud ---
+vault_nextcloud_admin_user: "ncadmin"
+vault_nextcloud_admin_password: "CHANGEME"
+vault_nextcloud_db_password: "CHANGEME"
+vault_harp_shared_key: "CHANGEME"
+vault_nextcloud_mail_smtppassword: "CHANGEME"
+
+# --- GLPI ---
+vault_glpi_db_password: "CHANGEME"
+vault_glpi_admin_password: "CHANGEME"
+vault_glpi_postonly_password: "CHANGEME"
+vault_glpi_tech_password: "CHANGEME"
+vault_glpi_normal_password: "CHANGEME"

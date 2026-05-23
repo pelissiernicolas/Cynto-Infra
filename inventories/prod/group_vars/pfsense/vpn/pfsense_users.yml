@@ -1,0 +1,11 @@
+pfsense_openvpn_users:
+  - name: nicolas.pelissier
+  - name: admin.it
+
+pfsense_openvpn_user_defaults:
+  keylen: "2048"
+  lifetime: "365"
+  dn_country: FR
+  dn_city: Toulouse
+  dn_organization: Cynto
+  dn_organizationalunit: VPN

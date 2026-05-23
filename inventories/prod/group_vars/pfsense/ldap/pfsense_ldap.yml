@@ -1,0 +1,28 @@
+pfsense_ldap_servers:
+  - name: AD-LDAP-01
+    host: srv-ad-01.cynto.tech
+    port: 636
+    transport: ssl
+    ca: CYNTO-AD-CA
+    basedn: "DC=cynto,DC=tech"
+    binddn: "CN=svc_ldap,OU=Comptes de service,OU=Utilisateurs,DC=cynto,DC=tech"
+    bindpw: "{{ vault_ldap_password }}"
+    attr_user: sAMAccountName
+    scope: subtree
+    authcn: "DC=cynto,DC=tech"
+    extended_enabled: true
+    extended_query: "memberOf=CN=GG_VPN_Users,OU=Groupes,DC=cynto,DC=tech"
+
+  - name: AD-LDAP-02
+    host: srv-ad-02.cynto.tech
+    port: 636
+    transport: ssl
+    ca: CYNTO-AD-CA
+    basedn: "DC=cynto,DC=tech"
+    binddn: "CN=svc_ldap,OU=Comptes de service,OU=Utilisateurs,DC=cynto,DC=tech"
+    bindpw: "{{ vault_ldap_password }}"
+    attr_user: sAMAccountName
+    scope: subtree
+    authcn: "DC=cynto,DC=tech"
+    extended_enabled: true
+    extended_query: "memberOf=CN=GG_VPN_Users,OU=Groupes,DC=cynto,DC=tech"

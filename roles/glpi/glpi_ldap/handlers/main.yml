@@ -1,0 +1,6 @@
+# roles/glpi_ldap/handlers/main.yml
+---
+- name: Restart Apache
+  ansible.builtin.service:
+    name: apache2
+    state: restarted

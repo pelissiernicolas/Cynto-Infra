@@ -1,0 +1,25 @@
+# roles/apache_https/templates/glpi-ssl.conf.j2
+<VirtualHost *:443>
+    ServerName {{ glpi_server_name }}
+    ServerAlias {{ server_hostname }}
+
+    DocumentRoot {{ glpi_public_dir }}
+
+    <Directory {{ glpi_public_dir }}>
+        Require all granted
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteRule ^(.*)$ index.php [QSA,L]
+    </Directory>
+
+    SSLEngine on
+    SSLCertificateFile {{ ssl_cert_path }}
+    SSLCertificateKeyFile {{ ssl_key_path }}
+
+    Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    ErrorLog ${APACHE_LOG_DIR}/glpi_ssl_error.log
+    CustomLog ${APACHE_LOG_DIR}/glpi_ssl_access.log combined
+</VirtualHost>

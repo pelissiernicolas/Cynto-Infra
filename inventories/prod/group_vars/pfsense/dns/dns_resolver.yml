@@ -1,0 +1,9 @@
+pfsense_dns_host_overrides:
+  - host: srv-ad-01
+    domain: cynto.tech
+    ip: 10.8.40.10            # HARMONISATION FUSION (était 192.168.1.60)
+    descr: Serveur Active Directory principal
+  - host: srv-ad-02
+    domain: cynto.tech
+    ip: 10.8.40.11            # HARMONISATION FUSION (était 192.168.1.61)
+    descr: Serveur Active Directory secondaire

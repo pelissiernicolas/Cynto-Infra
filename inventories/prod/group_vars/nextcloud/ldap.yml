@@ -1,0 +1,40 @@
+nextcloud_ldap_config_id: s01
+
+ldap_host: "ldaps://srv-ad-01.cynto.tech"
+ldap_host_backup: "ldaps://srv-ad-02.cynto.tech"
+ldap_port_backup: 639
+ldap_host_ip: "srv-ad-01.cynto.tech"
+ldap_port: 636
+ldap_base_dn: "DC=cynto,DC=tech"
+ldap_user_base_dn: "OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
+ldap_group_base_dn: "OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech"
+ldap_bind_dn: "svc_nextcloud@cynto.tech"
+
+ldap_login_filter: "(&(objectClass=user)(sAMAccountName=%uid)(|(memberOf=CN=GG_Nextcloud_Users,OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech)(memberOf=CN=GG_Nextcloud_Admins,OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech)))"
+ldap_user_filter: "(&(objectClass=user)(|(memberOf=CN=GG_Nextcloud_Users,OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech)(memberOf=CN=GG_Nextcloud_Admins,OU=Nextcloud-Groupes,OU=Groupes,DC=cynto,DC=tech)))"
+ldap_group_filter: "(objectClass=group)"
+ldap_display_name_attr: "displayName"
+ldap_email_attr: "mail"
+ldap_uuid_user_attr: "objectGUID"
+ldap_uuid_group_attr: "objectGUID"
+ldap_username_attr: "sAMAccountName"
+ldap_groupname_attr: "cn"
+ldap_attributes_for_user_search: "sAMAccountName;displayName;mail"
+ldap_attributes_for_group_search: "cn"
+
+ldap_ca_cert_src: "{{ playbook_dir }}/artifacts/ad-ca/cynto-root-ca.cer"   # déposé par playbooks/ldaps-prep.yml
+ldap_ca_cert_remote_path: "/usr/local/share/ca-certificates/cynto-root-ca.crt"
+ldap_use_tls: "0"
+ldap_turn_off_cert_check: "0"
+
+# move to group_vars/ad/ad.yml
+ad_ca_common_name: "CYNTO-ROOT-CA"
+ad_ca_dn_suffix: "DC=cynto,DC=tech"
+ad_ca_validity_years: 10
+
+ad_dc_fqdn: "srv-ad-01.cynto.tech"
+
+ad_ca_export_dir: 'C:\Temp\ca-export'
+ad_ca_cert_export_path: 'C:\Temp\ca-export\cynto-root-ca.cer'
+
+ad_ca_config_string: "srv-ad-01\\CYNTO-ROOT-CA"

@@ -1,0 +1,17 @@
+nextcloud_domain: cloud.cynto.tech
+nextcloud_trusted_domains:
+  - cloud.cynto.tech
+  - srv-nextcloud
+  - 10.8.40.12
+
+nextcloud_admin_user: "{{ vault_nextcloud_admin_user }}"
+nextcloud_admin_password: "{{ vault_nextcloud_admin_password }}"
+nextcloud_db_name: nextcloud
+nextcloud_db_user: nextcloud
+nextcloud_db_password: "{{ vault_nextcloud_db_password }}"
+nextcloud_data_dir: /data/nextcloud
+nextcloud_web_root: /var/www/nextcloud
+nextcloud_url: "https://cloud.cynto.tech"
+
+# Fenetre de maintenance pour les mises a jour (en heures, 0-23)
+nextcloud_maintenance_window_start: 2

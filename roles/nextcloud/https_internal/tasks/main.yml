@@ -1,0 +1,133 @@
+- name: Installer les paquets SSL Apache
+  ansible.builtin.apt:
+    name:
+      - openssl
+      - ssl-cert
+    state: present
+    update_cache: true
+
+- name: Vérifier si Nextcloud est installé
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ status
+  register: nextcloud_status_https
+  changed_when: false
+  failed_when: false
+
+- name: Générer la clé privée
+  community.crypto.openssl_privatekey:
+    path: "{{ ssl_key_path }}"
+    size: 2048
+    type: RSA
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Générer la CSR
+  community.crypto.openssl_csr:
+    path: "{{ ssl_csr_path }}"
+    privatekey_path: "{{ ssl_key_path }}"
+    country_name: "{{ ssl_country }}"
+    state_or_province_name: "{{ ssl_state }}"
+    locality_name: "{{ ssl_locality }}"
+    organization_name: "{{ ssl_organization }}"
+    organizational_unit_name: "{{ ssl_organizational_unit }}"
+    common_name: "{{ ssl_common_name }}"
+    subject_alt_name:
+      - "DNS:{{ nextcloud_domain }}"
+      - "DNS:{{ server_hostname }}"
+      - "IP:{{ server_ip_cidr.split('/')[0] }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Générer le certificat autosigné
+  community.crypto.x509_certificate:
+    path: "{{ ssl_cert_path }}"
+    privatekey_path: "{{ ssl_key_path }}"
+    csr_path: "{{ ssl_csr_path }}"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ ssl_days }}d"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Apache
+
+- name: Activer les modules Apache nécessaires
+  ansible.builtin.command: "a2enmod {{ item }}"
+  loop:
+    - ssl
+    - headers
+    - rewrite
+  register: apache_ssl_mods
+  changed_when: "'already enabled' not in apache_ssl_mods.stdout"
+  notify: Reload Apache
+
+- name: Déployer le vhost HTTP avec redirection
+  ansible.builtin.template:
+    src: apache-nextcloud.conf.j2
+    dest: /etc/apache2/sites-available/nextcloud.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Apache
+
+- name: Déployer le vhost HTTPS
+  ansible.builtin.template:
+    src: nextcloud-ssl.conf.j2
+    dest: /etc/apache2/sites-available/nextcloud-ssl.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Apache
+
+- name: Désactiver le site par défaut
+  ansible.builtin.command: a2dissite 000-default.conf
+  register: disable_default_site
+  failed_when: false
+  changed_when: "'disabled' in disable_default_site.stdout"
+  notify: Reload Apache
+
+- name: Activer le site HTTP Nextcloud
+  ansible.builtin.command: a2ensite nextcloud.conf
+  register: enable_http_site
+  changed_when: "'enabled' in enable_http_site.stdout"
+  notify: Reload Apache
+
+- name: Activer le site HTTPS Nextcloud
+  ansible.builtin.command: a2ensite nextcloud-ssl.conf
+  register: enable_https_site
+  changed_when: "'enabled' in enable_https_site.stdout"
+  notify: Reload Apache
+
+- name: Vérifier la configuration Apache
+  ansible.builtin.command: apache2ctl configtest
+  changed_when: false
+
+- name: Définir overwrite.cli.url en HTTPS
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set overwrite.cli.url --value="https://{{ nextcloud_domain }}"
+  when: "'installed: true' in nextcloud_status_https.stdout"
+  changed_when: false
+
+- name: Définir overwriteprotocol en HTTPS
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set overwriteprotocol --value="https"
+  when: "'installed: true' in nextcloud_status_https.stdout"
+  changed_when: false
+
+- name: Ajouter trusted domain principal
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set trusted_domains 0 --value="{{ nextcloud_domain }}"
+  when: "'installed: true' in nextcloud_status_https.stdout"
+  changed_when: false
+
+- name: Ajouter trusted domain hostname
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set trusted_domains 1 --value="{{ server_hostname }}"
+  when: "'installed: true' in nextcloud_status_https.stdout"
+  changed_when: false
+
+- name: Ajouter trusted domain IP
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set trusted_domains 2 --value="{{ server_ip_cidr.split('/')[0] }}"
+  when: "'installed: true' in nextcloud_status_https.stdout"
+  changed_when: false

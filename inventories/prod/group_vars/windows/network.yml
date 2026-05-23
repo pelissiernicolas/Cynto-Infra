@@ -1,0 +1,12 @@
+# inventories/prod/group_vars/windows/network.yml
+# Paramètres réseau appliqués aux hôtes Windows.
+---
+network_adapter_name: "Ethernet"
+network_prefix_length: 27
+network_gateway: "10.8.40.1"
+configure_full_network: true
+
+# Serveurs DNS (référence — généralement définis par hôte dans host_vars) :
+# network_dns_servers:
+#   - "10.8.40.10"
+#   - "10.8.40.11"

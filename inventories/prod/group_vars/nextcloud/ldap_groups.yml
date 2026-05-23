@@ -1,0 +1,9 @@
+nextcloud_quota_rules:
+  - group: "GG_Nextcloud_50gb"
+    quota: "50 GB"
+  - group: "GG_Nextcloud_10gb"
+    quota: "10 GB"
+  - group: "GG_Nextcloud_5gb"
+    quota: "5 GB"
+
+nextcloud_admin_group: "GG_Nextcloud_Admins"

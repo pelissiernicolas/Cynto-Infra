@@ -1,0 +1,12 @@
+- name: Renommer le serveur
+  ansible.windows.win_hostname:
+    name: "{{ server_hostname }}"
+  register: hostname_change
+
+- name: Définir le fuseau horaire
+  community.windows.win_timezone:
+    timezone: "Romance Standard Time"
+
+- name: Redémarrer si le nom a changé
+  ansible.windows.win_reboot:
+  when: hostname_change.reboot_required

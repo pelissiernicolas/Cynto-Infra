@@ -1,0 +1,42 @@
+pfsense_interfaces:
+  - name: VLAN10_ADMIN
+    interface: vtnet1.10
+    ip: 10.8.10.1
+    subnet: 28
+    description: VLAN10_ADMIN
+
+  - name: VLAN20_USERS
+    interface: vtnet1.20
+    ip: 10.8.20.1
+    subnet: 26
+    description: VLAN20_USERS
+
+  - name: VLAN30_DEVELOPMENT
+    interface: vtnet1.30
+    ip: 10.8.30.1
+    subnet: 27 
+    description: VLAN30_DEVELOPMENT
+
+  - name: VLAN40_SERVERS
+    interface: vtnet1.40
+    ip: 10.8.40.1
+    subnet: 27
+    description: VLAN40_SERVERS
+  
+  - name: VLAN60_WiFi
+    interface: vtnet1.60
+    ip: 10.8.60.1
+    subnet: 26
+    description: VLAN60_WiFi
+  
+  - name: VLAN70_IMPRESSION_IoT
+    interface: vtnet1.70
+    ip: 10.8.70.1
+    subnet: 28
+    description: VLAN70_IMPRESSION/IoT
+  
+  - name: VLAN99_MANAGEMENT
+    interface: vtnet1.99
+    ip: 10.8.99.1
+    subnet: 28
+    description: VLAN99_MANAGEMENT

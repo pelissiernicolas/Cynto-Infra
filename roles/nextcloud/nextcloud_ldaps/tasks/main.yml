@@ -1,0 +1,308 @@
+- name: Installer les paquets LDAP
+  ansible.builtin.apt:
+    name:
+      - php-ldap
+      - ldap-utils
+      - openssl
+    state: present
+    update_cache: true
+  notify: Restart Apache
+
+- name: Vérifier si Nextcloud est installé
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - status
+  register: nextcloud_status_ldap
+  changed_when: false
+  failed_when: false
+
+- name: Copier le certificat CA AD brut sur Ubuntu
+  ansible.builtin.copy:
+    src: "{{ ldap_ca_cert_src }}"
+    dest: /tmp/cynto-root-ca.cer
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Convertir le certificat CA en PEM .crt
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -inform
+      - DER
+      - -in
+      - /tmp/cynto-root-ca.cer
+      - -out
+      - "{{ ldap_ca_cert_remote_path }}"
+  changed_when: true
+
+- name: Déclarer la CA LDAP système
+  ansible.builtin.lineinfile:
+    path: /etc/ldap/ldap.conf
+    regexp: '^TLS_CACERT\s+'
+    line: "TLS_CACERT {{ ldap_ca_cert_remote_path }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Mettre à jour les certificats de confiance
+  ansible.builtin.command: update-ca-certificates
+  changed_when: false
+
+- name: Vérifier que le mot de passe LDAP est défini
+  ansible.builtin.assert:
+    that:
+      - vault_service_account_password is defined
+      - vault_service_account_password | length > 0
+    fail_msg: "La variable vault_service_account_password est absente ou vide."
+  no_log: true
+
+- name: Forcer la résolution locale du DC AD en IPv4
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^\s*10\.8\.40\.10\s+srv-ad-01\.cynto\.tech(\s|$)'
+    line: "10.8.40.10 srv-ad-01.cynto.tech"
+    state: present
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Vérifier la résolution locale du DC
+  ansible.builtin.command:
+    argv:
+      - getent
+      - hosts
+      - srv-ad-01.cynto.tech
+  register: hosts_resolution
+  changed_when: false
+
+- name: Afficher la résolution locale
+  ansible.builtin.debug:
+    var: hosts_resolution.stdout
+
+- name: Vérifier le bind LDAPS système
+  ansible.builtin.command:
+    argv:
+      - ldapwhoami
+      - -x
+      - -H
+      - "ldaps://{{ ldap_host_ip }}:{{ ldap_port }}"
+      - -D
+      - "{{ ldap_bind_dn }}"
+      - -w
+      - "{{ vault_service_account_password }}"
+  register: ldap_bind_test
+  changed_when: false
+  failed_when: ldap_bind_test.rc != 0
+  no_log: true
+
+- name: Lister les apps Nextcloud
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - app:list
+  register: nextcloud_apps_list_ldap
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_ldap.stdout"
+
+- name: Installer l'app LDAP si absente
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - app:install
+      - user_ldap
+  register: ldap_app_install
+  failed_when: false
+  changed_when: "'installed' in (ldap_app_install.stdout | lower)"
+  when:
+    - "'installed: true' in nextcloud_status_ldap.stdout"
+    - "'user_ldap:' not in nextcloud_apps_list_ldap.stdout"
+
+- name: Activer l'app LDAP si nécessaire
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - app:enable
+      - user_ldap
+  register: ldap_app_enable
+  failed_when: false
+  changed_when: "'enabled' in (ldap_app_enable.stdout | lower)"
+  when:
+    - "'installed: true' in nextcloud_status_ldap.stdout"
+    - "'user_ldap:' in nextcloud_apps_list_ldap.stdout"
+
+- name: Afficher les configs LDAP existantes
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - ldap:show-config
+  register: ldap_show_config
+  changed_when: false
+  failed_when: false
+  when: "'installed: true' in nextcloud_status_ldap.stdout"
+
+- name: Créer une config LDAP vide si aucune n'existe
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - ldap:create-empty-config
+  register: ldap_create_config
+  changed_when: "'Created new configuration' in ldap_create_config.stdout"
+  when:
+    - "'installed: true' in nextcloud_status_ldap.stdout"
+    - ldap_show_config.stdout | trim == ""
+
+- name: Déterminer le configID LDAP depuis la création
+  ansible.builtin.set_fact:
+    ldap_config_id_effective: >-
+      {{
+        (ldap_create_config.stdout | regex_findall("s[0-9]+") | first)
+        if (
+          ldap_create_config is defined and
+          ldap_create_config.stdout is defined and
+          (ldap_create_config.stdout | regex_findall("s[0-9]+") | length) > 0
+        )
+        else ""
+      }}
+
+- name: Déterminer le configID LDAP depuis les configs existantes
+  ansible.builtin.set_fact:
+    ldap_config_id_effective: >-
+      {{
+        (ldap_show_config.stdout | regex_findall("s[0-9]+") | first)
+        if (
+          ldap_config_id_effective | default('') | length == 0 and
+          ldap_show_config is defined and
+          ldap_show_config.stdout is defined and
+          (ldap_show_config.stdout | regex_findall("s[0-9]+") | length) > 0
+        )
+        else ldap_config_id_effective
+      }}
+
+- name: Afficher la sortie brute ldap:show-config
+  ansible.builtin.debug:
+    var: ldap_show_config.stdout
+
+- name: Vérifier que le configID LDAP a été trouvé
+  ansible.builtin.assert:
+    that:
+      - ldap_config_id_effective is defined
+      - ldap_config_id_effective | length > 0
+    fail_msg: "Impossible de déterminer le configID LDAP Nextcloud."
+
+- name: Afficher le configID LDAP utilisé
+  ansible.builtin.debug:
+    var: ldap_config_id_effective
+
+- name: Vérifier que le configID LDAP a été trouvé
+  ansible.builtin.assert:
+    that:
+      - ldap_config_id_effective is defined
+      - ldap_config_id_effective | length > 0
+    fail_msg: "Impossible de déterminer le configID LDAP Nextcloud."
+
+- name: Afficher le configID LDAP utilisé
+  ansible.builtin.debug:
+    var: ldap_config_id_effective
+
+- name: Définir les paramètres LDAP principaux
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - ldap:set-config
+      - "{{ ldap_config_id_effective }}"
+      - "{{ item.key }}"
+      - "{{ item.value }}"
+  loop:
+    - { key: "ldapHost", value: "{{ ldap_host }}" }
+    - { key: "ldapBackupHost", value: "{{ ldap_host_backup }}" }
+    - { key: "ldapPort", value: "{{ ldap_port | string }}" }
+    - { key: "ldapBackupPort", value: "{{ ldap_port_backup | string }}" }
+    - { key: "ldapBase", value: "{{ ldap_base_dn }}" }
+    - { key: "ldapBaseUsers", value: "{{ ldap_user_base_dn }}" }
+    - { key: "ldapBaseGroups", value: "{{ ldap_group_base_dn }}" }
+    - { key: "ldapAgentName", value: "{{ ldap_bind_dn }}" }
+    - { key: "ldapLoginFilter", value: "{{ ldap_login_filter }}" }
+    - { key: "ldapUserFilter", value: "{{ ldap_user_filter }}" }
+    - { key: "ldapGroupFilter", value: "{{ ldap_group_filter }}" }
+    - { key: "ldapExpertUsernameAttr", value: "{{ ldap_username_attr }}" }
+    - { key: "ldapDisplayName", value: "{{ ldap_display_name_attr }}" }
+    - { key: "ldapEmailAttribute", value: "{{ ldap_email_attr }}" }
+    - { key: "ldapUuidUserAttribute", value: "{{ ldap_uuid_user_attr }}" }
+    - { key: "ldapUuidGroupAttribute", value: "{{ ldap_uuid_group_attr }}" }
+    - { key: "ldapGroupDisplayName", value: "{{ ldap_groupname_attr }}" }
+    - { key: "ldapAttributesForUserSearch", value: "{{ ldap_attributes_for_user_search }}" }
+    - { key: "ldapAttributesForGroupSearch", value: "{{ ldap_attributes_for_group_search }}" }
+    - { key: "ldapGroupFilterObjectclass", value: "group" }
+    - { key: "ldapGroupMemberAssocAttr", value: "member" }
+    - { key: "useMemberOfToDetectMembership", value: "1" }
+    - { key: "ldapNestedGroups", value: "1" }
+    - { key: "ldapExpertUUIDUserAttrBinary", value: "1" }
+    - { key: "ldapExpertUUIDGroupAttrBinary", value: "1" }
+    - { key: "ldapTLS", value: "{{ ldap_use_tls }}" }
+    - { key: "turnOffCertCheck", value: "{{ ldap_turn_off_cert_check }}" }
+    - { key: "ldapConfigurationActive", value: "1" }
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_ldap.stdout"
+
+- name: Définir le mot de passe de bind LDAP
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - ldap:set-config
+      - "{{ ldap_config_id_effective }}"
+      - ldapAgentPassword
+      - "{{ vault_service_account_password }}"
+  changed_when: false
+  no_log: true
+  when: "'installed: true' in nextcloud_status_ldap.stdout"
+
+- name: Tester la configuration LDAP Nextcloud
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - ldap:test-config
+      - "{{ ldap_config_id_effective }}"
+  register: ldap_test_config
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_ldap.stdout"

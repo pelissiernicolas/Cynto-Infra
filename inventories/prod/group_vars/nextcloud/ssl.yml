@@ -1,0 +1,11 @@
+ssl_country: FR
+ssl_state: France
+ssl_locality: Toulouse
+ssl_organization: CYNTO
+ssl_organizational_unit: IT
+ssl_common_name: "{{ nextcloud_domain }}"
+ssl_days: 3650
+
+ssl_key_path: /etc/ssl/private/nextcloud.key
+ssl_cert_path: /etc/ssl/certs/nextcloud.crt
+ssl_csr_path: /etc/ssl/private/nextcloud.csr

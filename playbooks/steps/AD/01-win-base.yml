@@ -1,0 +1,5 @@
+- name: Configuration de base Windows
+  hosts: windows
+  gather_facts: false
+  roles:
+    - win_base

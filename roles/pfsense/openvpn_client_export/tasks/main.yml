@@ -1,0 +1,4 @@
+- name: Installer le paquet OpenVPN Client Export
+  ansible.builtin.raw: pkg install -y pfSense-pkg-openvpn-client-export
+  changed_when: "'already installed' not in openvpn_client_export_install.stdout"
+  register: openvpn_client_export_install

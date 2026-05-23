@@ -1,0 +1,37 @@
+# playbooks/ldaps-prep.yml
+# ÉTAPE PARTAGÉE (factorisée) : préparation LDAPS côté Active Directory.
+# Auparavant dupliquée dans pfSense, Nextcloud et GLPI (rôle adcs_ldaps + fetch CA).
+# Elle est désormais exécutée UNE SEULE FOIS ici :
+#   1. Installe AD CS, publie le template, émet le certificat LDAPS du DC, exporte la CA racine.
+#   2. Récupère la CA racine (.cer / DER) sur le nœud de contrôle.
+#   3. Convertit la CA en PEM (utilisée par pfSense et les clients Linux).
+# Les artefacts sont déposés dans playbooks/artifacts/ad-ca/ et consommés par
+# pfsense_ad_ca, nextcloud_ldaps et glpi_ldap (variables *_ca_* basées sur playbook_dir).
+---
+- name: Installer AD CS et préparer LDAPS sur le contrôleur de domaine
+  hosts: ad
+  gather_facts: false
+  roles:
+    - adcs_ldaps
+
+- name: Récupérer le certificat racine de la CA AD
+  hosts: ad
+  gather_facts: false
+  tasks:
+    - name: Récupérer le certificat CA (.cer / DER)
+      ansible.builtin.fetch:
+        src: "{{ ad_ca_cert_export_path }}"
+        dest: "{{ playbook_dir }}/artifacts/ad-ca/cynto-root-ca.cer"
+        flat: true
+
+- name: Convertir la CA AD en PEM (pour pfSense et clients Linux)
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Convertir le certificat DER vers PEM
+      ansible.builtin.command:
+        cmd: >
+          openssl x509 -inform DER
+          -in {{ playbook_dir }}/artifacts/ad-ca/cynto-root-ca.cer
+          -out {{ playbook_dir }}/artifacts/ad-ca/cynto-root-ca.pem
+        creates: "{{ playbook_dir }}/artifacts/ad-ca/cynto-root-ca.pem"

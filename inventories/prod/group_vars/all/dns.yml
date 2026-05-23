@@ -1,0 +1,27 @@
+# inventories/prod/group_vars/all/dns.yml
+# Configuration DNS globale : redirecteurs, zones et enregistrements.
+---
+dns_forwarders:
+  - "10.8.40.10"
+  - "10.8.40.11"
+
+dns_forward_zone_name: "cynto.tech"
+dns_reverse_zone_name: "40.8.10.in-addr.arpa"
+dns_reverse_network_id: "10.8.40.0/24" #/!\ Pas /27, sinon Windows peut créer une zone classless différente.
+
+dns_hosts:
+  - name: "srv-ad-01"
+    ip: "10.8.40.10"
+    create_ptr: true
+  - name: "srv-ad-02"
+    ip: "10.8.40.11"
+    create_ptr: true
+  - name: "srv-nextcloud"
+    ip: "10.8.40.12"
+    create_ptr: true
+  - name: "cloud"
+    ip: "10.8.40.12"
+    create_ptr: true
+  - name: "srv-glpi"
+    ip: "10.8.40.13"
+    create_ptr: true

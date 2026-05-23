@@ -1,0 +1,59 @@
+# playbooks/pfsense.yml
+# SERVICE : pfSense — configuration de base, réseau (VLAN/interfaces), alias,
+# règles firewall, import de la CA AD, authentification LDAP et OpenVPN.
+# Pré-requis : playbooks/ldaps-prep.yml exécuté (pour la CA AD en PEM).
+---
+- name: Configuration de base pfSense
+  hosts: pfsense
+  gather_facts: false
+  become: true
+  collections:
+    - pfsensible.core
+  roles:
+    - base_config
+    - dns_resolver
+
+- name: Création des VLANs et interfaces pfSense
+  hosts: pfsense
+  gather_facts: false
+  collections:
+    - pfsensible.core
+  roles:
+    - vlans
+    - interfaces
+
+- name: Création des alias pfSense
+  hosts: pfsense
+  gather_facts: false
+  collections:
+    - pfsensible.core
+  roles:
+    - aliases
+
+- name: Création des règles firewall pfSense
+  hosts: pfsense
+  gather_facts: false
+  collections:
+    - pfsensible.core
+  roles:
+    - firewall_rules
+
+- name: Importer la CA Active Directory dans pfSense
+  hosts: pfsense
+  gather_facts: false
+  collections:
+    - pfsensible.core
+  roles:
+    - pfsense_ad_ca
+
+- name: Authentification LDAP et OpenVPN
+  hosts: pfsense
+  gather_facts: false
+  collections:
+    - pfsensible.core
+  roles:
+    - ldap_auth
+    - openvpn_server
+    - openvpn_firewall
+    - openvpn_client_export
+    - openvpn_users

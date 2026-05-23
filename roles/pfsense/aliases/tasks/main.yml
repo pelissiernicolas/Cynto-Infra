@@ -1,0 +1,17 @@
+- name: Créer les alias IP pfSense
+  pfsensible.core.pfsense_alias:
+    name: "{{ item.name }}"
+    type: "{{ item.type }}"
+    address: "{{ item.address }}"
+    descr: "{{ item.description }}"
+    state: present
+  loop: "{{ pfsense_ip_aliases }}"
+
+- name: Créer les alias de ports pfSense
+  pfsensible.core.pfsense_alias:
+    name: "{{ item.name }}"
+    type: "{{ item.type }}"
+    address: "{{ item.address }}"
+    descr: "{{ item.description }}"
+    state: present
+  loop: "{{ pfsense_port_aliases }}"

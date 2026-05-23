@@ -1,0 +1,6 @@
+- name: Configurer les paramètres généraux pfSense
+  pfsensible.core.pfsense_setup:
+    hostname: "{{ pfsense_base_config.hostname }}"
+    domain: "{{ pfsense_base_config.domain }}"
+    timezone: "{{ pfsense_base_config.timezone }}"
+    dns_addresses: "{{ pfsense_base_config.dns_servers | default(omit) }}"

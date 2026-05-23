@@ -1,0 +1,25 @@
+- name: Créer les utilisateurs AD
+  microsoft.ad.user:
+    identity: "{{ item.name }}"
+    firstname: "{{ item.firstname }}"
+    surname: "{{ item.surname }}"
+    display_name: "{{ item.display_name }}"
+    upn: "{{ item.upn }}"
+    password: "{{ item.password }}"
+    path: "{{ item.path }}"
+    enabled: "{{ item.enabled | default(true) }}"
+    password_never_expires: "{{ item.password_never_expires | default(false) }}"
+    state: present
+  loop: "{{ ad_users }}"
+  no_log: true
+
+- name: Ajouter les utilisateurs à leurs groupes
+  microsoft.ad.group:
+    identity: "{{ pair.1 }}"
+    members:
+      add:
+        - "{{ pair.0.name }}"
+    state: present
+  loop: "{{ ad_users | subelements('groups', skip_missing=True) }}"
+  loop_control:
+    loop_var: pair

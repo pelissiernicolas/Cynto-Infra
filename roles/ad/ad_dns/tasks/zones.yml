@@ -1,0 +1,37 @@
+---
+- name: Créer la zone DNS directe si absente
+  ansible.windows.win_powershell:
+    script: |
+      $zoneName = "{{ dns_forward_zone_name }}"
+      $existing = Get-DnsServerZone -Name $zoneName -ErrorAction SilentlyContinue
+
+      if (-not $existing) {
+          Add-DnsServerPrimaryZone -Name $zoneName -ReplicationScope Domain -DynamicUpdate Secure
+          Write-Output "Zone directe créée"
+      } else {
+          Write-Output "Zone directe déjà présente"
+      }
+  register: forward_zone_result
+  changed_when: >
+    forward_zone_result.output is defined and
+    forward_zone_result.output | length > 0 and
+    'créée' in forward_zone_result.output[0]
+
+- name: Créer la zone DNS inverse si absente
+  ansible.windows.win_powershell:
+    script: |
+      $zoneName = "{{ dns_reverse_zone_name }}"
+      $networkId = "{{ dns_reverse_network_id }}"
+      $existing = Get-DnsServerZone -Name $zoneName -ErrorAction SilentlyContinue
+
+      if (-not $existing) {
+          Add-DnsServerPrimaryZone -NetworkId $networkId -ReplicationScope Domain
+          Write-Output "Zone inverse créée"
+      } else {
+          Write-Output "Zone inverse déjà présente"
+      }
+  register: reverse_zone_result
+  changed_when: >
+    reverse_zone_result.output is defined and
+    reverse_zone_result.output | length > 0 and
+    'créée' in reverse_zone_result.output[0]

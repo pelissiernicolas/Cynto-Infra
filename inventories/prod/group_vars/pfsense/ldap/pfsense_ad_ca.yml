@@ -1,0 +1,3 @@
+pfsense_ad_ca:
+  name: CYNTO-AD-CA
+  local_path: "{{ playbook_dir }}/artifacts/ad-ca/cynto-root-ca.pem"

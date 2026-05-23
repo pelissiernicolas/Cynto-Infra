@@ -1,0 +1,36 @@
+- name: Vérifier si Nextcloud est installé
+  ansible.builtin.command: sudo -u www-data php {{ nextcloud_web_root }}/occ status
+  register: nextcloud_status_postconfig
+  changed_when: false
+  failed_when: false
+
+- name: Définir l'heure de début de la fenêtre de maintenance
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ config:system:set maintenance_window_start
+    --type=integer
+    --value="{{ nextcloud_maintenance_window_start }}"
+  when: "'installed: true' in nextcloud_status_postconfig.stdout"
+  changed_when: false
+
+- name: Lancer la réparation et la migration des types MIME
+  ansible.builtin.command: >
+    sudo -u www-data php {{ nextcloud_web_root }}/occ maintenance:repair --include-expensive
+  when: "'installed: true' in nextcloud_status_postconfig.stdout"
+  register: nextcloud_repair
+  changed_when: >
+    'already up to date' not in nextcloud_repair.stdout | lower
+
+- name: Définir le serverid Nextcloud
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -u
+      - www-data
+      - php
+      - "{{ nextcloud_web_root }}/occ"
+      - config:system:set
+      - serverid
+      - --type=integer
+      - --value={{ nextcloud_serverid | string }}
+  changed_when: false
+  when: "'installed: true' in nextcloud_status_postconfig.stdout"

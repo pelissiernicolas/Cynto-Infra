@@ -1,0 +1,4 @@
+# inventories/prod/group_vars/member_servers/main.yml
+# (Aucune variable spécifique pour l'instant — serveurs membres du domaine.)
+---
+base_server_upgrade : safe

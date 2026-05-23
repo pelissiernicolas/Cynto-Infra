@@ -1,0 +1,24 @@
+- name: Vérifier les variables
+  ansible.builtin.assert:
+    that:
+      - pfsense_openvpn_users is defined
+      - pfsense_openvpn_users | length > 0
+      - pfsense_openvpn_user_defaults is defined
+
+- name: Créer les certificats utilisateurs OpenVPN
+  pfsensible.core.pfsense_cert:
+    name: "{{ item.name }}"
+    ca: "{{ pfsense_openvpn_ca.name }}"
+    method: internal
+    certtype: user
+
+    keylen: "{{ pfsense_openvpn_user_defaults.keylen }}"
+    lifetime: "{{ pfsense_openvpn_user_defaults.lifetime }}"
+    dn_country: "{{ pfsense_openvpn_user_defaults.dn_country }}"
+    dn_city: "{{ pfsense_openvpn_user_defaults.dn_city }}"
+    dn_organization: "{{ pfsense_openvpn_user_defaults.dn_organization }}"
+    dn_organizationalunit: "{{ pfsense_openvpn_user_defaults.dn_organizationalunit }}"
+
+    state: present
+
+  loop: "{{ pfsense_openvpn_users }}"

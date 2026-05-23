@@ -1,0 +1,28 @@
+# site.yml
+# Orchestration MAÎTRE de l'infrastructure Cynto.
+# Déploie l'ensemble des services dans l'ordre des dépendances.
+#
+# Chaque service reste exécutable indépendamment :
+#   ansible-playbook playbooks/ad.yml
+#   ansible-playbook playbooks/pfsense.yml
+#   ansible-playbook playbooks/nextcloud.yml
+#   ansible-playbook playbooks/glpi.yml
+# (les services LDAPS supposent que playbooks/ldaps-prep.yml a déjà été lancé).
+#
+# Déploiement complet :
+#   ansible-playbook site.yml --ask-vault-pass --ask-pass --ask-become-pass
+---
+# 1. Identité : Active Directory (forêt, DC, objets, DNS)
+- import_playbook: playbooks/ad.yml
+
+# 2. Préparation LDAPS partagée (AD CS + export de la CA racine) — UNE SEULE FOIS
+- import_playbook: playbooks/ldaps-prep.yml
+
+# 3. Réseau / sécurité périmétrique : pfSense (+ LDAP/OpenVPN)
+- import_playbook: playbooks/pfsense.yml
+
+# 4. Plateforme collaborative : Nextcloud
+- import_playbook: playbooks/nextcloud.yml
+
+# 5. Gestion de parc / ITSM : GLPI
+- import_playbook: playbooks/glpi.yml

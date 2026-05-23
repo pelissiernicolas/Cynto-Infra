@@ -1,0 +1,72 @@
+# roles/ad/win_network/tasks/main.yml
+# Configuration réseau des hôtes Windows.
+#
+# IMPORTANT : ce rôle s'exécute sur l'interface par laquelle Ansible est connecté en WinRM.
+# Il évite donc soigneusement de SUPPRIMER l'adresse IP de connexion :
+#   - l'IP voulue n'est ajoutée que si elle est absente ;
+#   - le masque est ajusté via Set-NetIPAddress (sans remove/add) ;
+#   - la passerelle est installée en AJOUTANT la bonne route AVANT de retirer les mauvaises
+#     (un changement de route ne coupe pas une session TCP/WinRM déjà établie).
+---
+- name: Afficher la configuration cible
+  ansible.builtin.debug:
+    msg:
+      - "Serveur: {{ inventory_hostname }}"
+      - "Interface: {{ network_adapter_name }}"
+      - "IP cible: {{ server_ip }}/{{ network_prefix_length }}"
+      - "Passerelle: {{ network_gateway }}"
+      - "DNS: {{ network_dns_servers }}"
+
+- name: Configurer les DNS du client
+  ansible.windows.win_dns_client:
+    adapter_names: "{{ network_adapter_name }}"
+    ipv4_addresses: "{{ network_dns_servers }}"
+
+- name: Configurer l'IP et la passerelle (sans couper la connexion WinRM)
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      $alias        = "{{ network_adapter_name }}"
+      $wantedIp     = "{{ server_ip }}"
+      $wantedPrefix = [int]"{{ network_prefix_length }}"
+      $wantedGw     = "{{ network_gateway }}"
+      $changed      = $false
+
+      # 1) IP : ajouter seulement si absente ; sinon corriger le masque sans remove/add.
+      $addr = Get-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+              Where-Object { $_.IPAddress -eq $wantedIp }
+
+      if (-not $addr) {
+          New-NetIPAddress -InterfaceAlias $alias -IPAddress $wantedIp -PrefixLength $wantedPrefix `
+              -DefaultGateway $wantedGw -ErrorAction SilentlyContinue | Out-Null
+          $changed = $true
+      }
+      elseif ($addr.PrefixLength -ne $wantedPrefix) {
+          Set-NetIPAddress -InterfaceAlias $alias -IPAddress $wantedIp -PrefixLength $wantedPrefix `
+              -ErrorAction SilentlyContinue | Out-Null
+          $changed = $true
+      }
+
+      # 2) Passerelle par défaut : ajouter la bonne route AVANT de retirer les éventuelles mauvaises.
+      $defRoutes = Get-NetRoute -InterfaceAlias $alias -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue
+      $hasGood   = $defRoutes | Where-Object { $_.NextHop -eq $wantedGw }
+
+      if (-not $hasGood) {
+          New-NetRoute -InterfaceAlias $alias -DestinationPrefix "0.0.0.0/0" -NextHop $wantedGw `
+              -ErrorAction SilentlyContinue | Out-Null
+          $changed = $true
+      }
+
+      # Retirer les routes par défaut erronées (après avoir garanti la bonne).
+      $bad = Get-NetRoute -InterfaceAlias $alias -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue |
+             Where-Object { $_.NextHop -ne $wantedGw -and $_.NextHop -ne "0.0.0.0" }
+      if ($bad) {
+          $bad | Remove-NetRoute -Confirm:$false -ErrorAction SilentlyContinue
+          $changed = $true
+      }
+
+      if ($changed) { Write-Output "Network updated" } else { Write-Output "No change required" }
+  register: win_network_result
+  changed_when: "'Network updated' in (win_network_result.output | default([]))"
+  when:
+    - configure_full_network | default(false) | bool

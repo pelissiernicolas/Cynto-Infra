@@ -1,0 +1,5 @@
+- name: Ajout du contrôleur de domaine secondaire
+  hosts: secondary_dcs
+  gather_facts: false
+  roles:
+    - ad_domain_controller

@@ -1,0 +1,64 @@
+# inventories/prod/group_vars/glpi/glpi_ldap.yml
+---
+#ldap_name: "CYNTO Active Directory"
+
+#ldap_host: "srv-ad-01.cynto.tech"
+#ldap_host_with_ldaps_prefix: "ldaps://srv-ad-01.cynto.tech"
+#ldap_uri: "ldaps://srv-ad-01.cynto.tech"
+#ldap_host_ip: "srv-ad-01.cynto.tech"
+ldap_port: 636
+
+ldap_servers:
+  - name: "CYNTO AD 01"
+    host: "ldaps://srv-ad-01.cynto.tech"
+    bind_dn: "svc_glpi@cynto.tech"
+    is_default: 1
+
+  - name: "CYNTO AD 02"
+    host: "ldaps://srv-ad-02.cynto.tech"
+    bind_dn: "svc_glpi@cynto.tech"
+    is_default: 0
+
+ad_dc_hosts:
+  - ip: "10.8.40.10"        # HARMONISATION FUSION (était 192.168.1.60)
+    fqdn: "srv-ad-01.cynto.tech"
+  - ip: "10.8.40.11"        # HARMONISATION FUSION (était 192.168.1.61)
+    fqdn: "srv-ad-02.cynto.tech"
+
+ldap_base_dn: "DC=cynto,DC=tech"
+#ldap_base_dn: "OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
+ldap_user_base_dn: "OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech"
+ldap_group_base_dn: "OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech"
+
+#ldap_bind_dn: "svc_glpi@cynto.tech"
+
+ldap_login_field: "samaccountname"
+ldap_sync_field: "objectguid"
+
+ldap_user_filter: "(|(&(objectClass=user)(objectCategory=person)(memberOf=CN=GG_GLPI_Admin,OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech))(&(objectClass=user)(objectCategory=person)(memberOf=CN=GG_GLPI_Tech,OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech))(&(objectClass=user)(objectCategory=person)(memberOf=CN=GG_GLPI_Users,OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech))(&(objectClass=group)(cn=GG_GLPI_*)))"
+#ldap_user_filter: "(&(objectClass=user)(objectCategory=person)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))"
+#ldap_user_filter: "(&(objectCategory=person)(objectclass=user))"
+
+### LDAP Groups configuration for GLPI
+ldap_group_field: "cn"
+ldap_group_condition: "(&(objectClass=group)(cn=GG_GLPI_*))"
+ldap_group_search_type: 1
+ldap_group_member_field: "member"
+
+ldap_ca_cert_src: "{{ playbook_dir }}/artifacts/ad-ca/cynto-root-ca.cer"   # déposé par playbooks/ldaps-prep.yml
+ldap_ca_cert_remote_path: "/usr/local/share/ca-certificates/cynto-root-ca.crt"
+
+
+### Groups access
+glpi_ad_groups:
+  - name: "GG_GLPI_Admin"
+    dn: "CN=GG_GLPI_Admin,OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech"
+    profile: "Super-Admin"
+
+  - name: "GG_GLPI_Tech"
+    dn: "CN=GG_GLPI_Tech,OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech"
+    profile: "Technician"
+  - name: "GG_GLPI_Users"
+    dn: "CN=GG_GLPI_Users,OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech"
+    profile: "Self-Service"
+

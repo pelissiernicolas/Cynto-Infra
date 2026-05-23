@@ -1,0 +1,81 @@
+---
+- name: Récupérer certificat GLPI
+  ansible.builtin.fetch:
+    src: "{{ glpi_cert_src_path }}"
+    dest: "/tmp/{{ glpi_cert_name }}"
+    flat: true
+  delegate_to: srv-glpi
+
+- name: Créer le dossier de partage
+  ansible.windows.win_file:
+    path: "{{ glpi_share_path }}"
+    state: directory
+
+- name: Créer le dossier GLPI Agent
+  ansible.windows.win_file:
+    path: "{{ glpi_share_path }}\\{{ glpi_deploy_folder }}"
+    state: directory
+
+- name: Créer le partage Applications$
+  ansible.windows.win_share:
+    name: "{{ glpi_share_name }}"
+    path: "{{ glpi_share_path }}"
+    description: "Partage de déploiement logiciel GLPI Agent"
+    list: false
+    full: "Administrateurs"
+    read: "{{ domain_computers_group }}"
+
+- name: Copier le certificat GLPI dans le partage
+  ansible.windows.win_copy:
+    src: "/tmp/{{ glpi_cert_name }}"
+    dest: "{{ glpi_share_path }}\\{{ glpi_deploy_folder }}\\{{ glpi_cert_name }}"
+
+- name: Copier le MSI GLPI Agent dans le partage
+  ansible.windows.win_copy:
+    src: "{{ glpi_agent_msi_name }}"
+    dest: "{{ glpi_share_path }}\\{{ glpi_deploy_folder }}\\{{ glpi_agent_msi_name }}"
+
+- name: Générer le script VBS de déploiement GLPI Agent
+  ansible.windows.win_template:
+    src: glpi-agent-deployment.vbs.j2
+    dest: "{{ glpi_share_path }}\\{{ glpi_deploy_folder }}\\glpi-agent-deployment.vbs"
+
+- name: Créer la GPO et l'associer à l'OU
+  ansible.windows.win_shell: |
+    Import-Module GroupPolicy
+
+    $GpoName = "{{ gpo_glpi_agent_name }}"
+    $TargetOU = "{{ gpo_glpi_agent_target_ou }}"
+
+    $gpo = Get-GPO -Name $GpoName -ErrorAction SilentlyContinue
+
+    if (-not $gpo) {
+        New-GPO -Name $GpoName | Out-Null
+    }
+
+    $existingLink = Get-GPInheritance -Target $TargetOU |
+        Select-Object -ExpandProperty GpoLinks |
+        Where-Object { $_.DisplayName -eq $GpoName }
+
+    if (-not $existingLink) {
+        New-GPLink -Name $GpoName -Target $TargetOU -LinkEnabled Yes | Out-Null
+    }
+  register: gpo_creation_result
+  changed_when: true
+
+- name: Récupérer le GUID de la GPO
+  ansible.windows.win_shell: |
+    Import-Module GroupPolicy
+    (Get-GPO -Name "{{ gpo_glpi_agent_name }}").Id.Guid
+  register: gpo_guid
+
+- name: Créer le dossier Startup de la GPO
+  ansible.windows.win_file:
+    path: "C:\\Windows\\SYSVOL\\sysvol\\{{ domain_name }}\\Policies\\{{ '{' }}{{ gpo_guid.stdout | trim }}{{ '}' }}\\Machine\\Scripts\\Startup"
+    state: directory
+
+- name: Copier le script VBS dans le Startup de la GPO
+  ansible.windows.win_copy:
+    src: "{{ glpi_share_path }}\\{{ glpi_deploy_folder }}\\glpi-agent-deployment.vbs"
+    dest: "C:\\Windows\\SYSVOL\\sysvol\\{{ domain_name }}\\Policies\\{{ '{' }}{{ gpo_guid.stdout | trim }}{{ '}' }}\\Machine\\Scripts\\Startup\\glpi-agent-deployment.vbs"
+    remote_src: true

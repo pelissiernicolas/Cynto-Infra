@@ -1,0 +1,5 @@
+- name: Création de la forêt Active Directory
+  hosts: primary_dc
+  gather_facts: false
+  roles:
+    - ad_forest

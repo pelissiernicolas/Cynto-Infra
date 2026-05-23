@@ -1,0 +1,11 @@
+server_hostname: srv-nextcloud
+server_fqdn: nextcloud.cynto.tech
+
+netplan_interface: "{{ ansible_default_ipv4.interface }}"
+server_ip_cidr: 10.8.40.12/27
+server_gateway: 10.8.40.1
+server_dns:
+  - 10.8.40.10
+  - 10.8.40.11
+
+timezone: Europe/Paris

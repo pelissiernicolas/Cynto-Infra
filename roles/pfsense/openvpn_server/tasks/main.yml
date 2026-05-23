@@ -1,0 +1,50 @@
+- name: Créer la CA interne OpenVPN
+  pfsensible.core.pfsense_ca:
+    name: "{{ pfsense_openvpn_ca.name }}"
+    method: "{{ pfsense_openvpn_ca.method }}"
+    keylen: "{{ pfsense_openvpn_ca.keylen }}"
+    lifetime: "{{ pfsense_openvpn_ca.lifetime }}"
+    dn_country: "{{ pfsense_openvpn_ca.dn_country }}"
+    dn_city: "{{ pfsense_openvpn_ca.dn_city }}"
+    dn_organization: "{{ pfsense_openvpn_ca.dn_organization }}"
+    dn_organizationalunit: "{{ pfsense_openvpn_ca.dn_organizationalunit }}"
+    dn_commonname: "{{ pfsense_openvpn_ca.dn_commonname }}"
+    state: present
+
+- name: Créer le certificat serveur OpenVPN
+  pfsensible.core.pfsense_cert:
+    name: "{{ pfsense_openvpn_cert.name }}"
+    ca: "{{ pfsense_openvpn_cert.ca }}"
+    method: "{{ pfsense_openvpn_cert.method }}"
+    certtype: "{{ pfsense_openvpn_cert.certtype }}"
+    keylen: "{{ pfsense_openvpn_cert.keylen }}"
+    lifetime: "{{ pfsense_openvpn_cert.lifetime }}"
+    dn_country: "{{ pfsense_openvpn_cert.dn_country }}"
+    dn_city: "{{ pfsense_openvpn_cert.dn_city }}"
+    dn_organization: "{{ pfsense_openvpn_cert.dn_organization }}"
+    dn_organizationalunit: "{{ pfsense_openvpn_cert.dn_organizationalunit }}"
+    altnames: "{{ pfsense_openvpn_cert.altnames }}"
+    state: present
+
+- name: Configurer le serveur OpenVPN avec authentification AD
+  pfsensible.core.pfsense_openvpn_server:
+    name: "{{ pfsense_openvpn.name }}"
+    mode: "{{ pfsense_openvpn.mode }}"
+    protocol: "{{ pfsense_openvpn.protocol }}"
+    interface: "{{ pfsense_openvpn.interface }}"
+    local_port: "{{ pfsense_openvpn.local_port }}"
+    ca: "{{ pfsense_openvpn.ca }}"
+    cert: "{{ pfsense_openvpn.cert }}"
+    authmode: "{{ pfsense_openvpn.authmode }}"
+    tunnel_network: "{{ pfsense_openvpn.tunnel_network }}"
+    local_network: "{{ pfsense_openvpn.local_network }}"
+    dns_domain: "{{ pfsense_openvpn.dns_domain }}"
+    dns_server1: "{{ pfsense_openvpn.dns_server1 }}"
+    dns_server2: "{{ pfsense_openvpn.dns_server2 }}"
+    topology: "{{ pfsense_openvpn.topology }}"
+    tls: "{{ pfsense_openvpn.tls }}"
+    tls_type: "{{ pfsense_openvpn.tls_type }}"
+    compression: "{{ pfsense_openvpn.compression }}"
+    allow_compression: "{{ pfsense_openvpn.allow_compression }}"
+    verbosity_level: "{{ pfsense_openvpn.verbosity_level }}"
+    state: present

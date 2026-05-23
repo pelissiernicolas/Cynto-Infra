@@ -1,0 +1,13 @@
+# inventories/prod/group_vars/glpi/apache_https.yml
+---
+ssl_country: FR
+ssl_state: France
+ssl_locality: Toulouse
+ssl_organization: CYNTO
+ssl_organizational_unit: IT
+ssl_common_name: "{{ glpi_server_name }}"
+ssl_days: 3650
+
+ssl_key_path: /etc/ssl/private/glpi.key
+ssl_cert_path: /etc/ssl/certs/glpi.crt
+ssl_csr_path: /etc/ssl/private/glpi.csr

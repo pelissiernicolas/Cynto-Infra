@@ -1,0 +1,25 @@
+pfsense_port_aliases:
+  - name: WEB_PORTS
+    type: port
+    address: 80 443 53
+    description: HTTP HTTPS DNS
+
+  - name: DNS_PORTS
+    type: port
+    address: 53
+    description: DNS TCP UDP
+
+  - name: AD_PORTS_TCP
+    type: port
+    address: 53 88 135 389 445 464 636 3268 3269 49152:65535
+    description: Ports TCP Active Directory
+
+  - name: AD_PORTS_UDP
+    type: port
+    address: 53 88 123 389 464
+    description: Ports UDP Active Directory
+
+  - name: ADMIN_PORTS
+    type: port
+    address: 22 3389 5985 5986 443
+    description: SSH RDP WinRM HTTPS

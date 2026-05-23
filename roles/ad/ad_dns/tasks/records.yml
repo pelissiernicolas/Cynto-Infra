@@ -1,0 +1,67 @@
+---
+- name: Créer / mettre à jour les enregistrements DNS A
+  ansible.windows.win_powershell:
+    script: |
+      $zoneName = "{{ dns_forward_zone_name }}"
+      $recordName = "{{ item.name }}"
+      $recordIp = "{{ item.ip }}"
+
+      $existing = Get-DnsServerResourceRecord -ZoneName $zoneName -Name $recordName -RRType "A" -ErrorAction SilentlyContinue
+
+      if ($existing) {
+          $currentIp = $existing.RecordData.IPv4Address.IPAddressToString
+          if ($currentIp -ne $recordIp) {
+              Remove-DnsServerResourceRecord -ZoneName $zoneName -RRType "A" -Name $recordName -RecordData $currentIp -Force
+              Add-DnsServerResourceRecordA -ZoneName $zoneName -Name $recordName -IPv4Address $recordIp -CreatePtr:$false
+              Write-Output "Enregistrement A mis à jour"
+          } else {
+              Write-Output "Enregistrement A déjà correct"
+          }
+      } else {
+          Add-DnsServerResourceRecordA -ZoneName $zoneName -Name $recordName -IPv4Address $recordIp -CreatePtr:$false
+          Write-Output "Enregistrement A créé"
+      }
+  loop: "{{ dns_hosts }}"
+  when: item.ip is defined
+  register: dns_a_result
+  changed_when: >
+    dns_a_result.output is defined and
+    dns_a_result.output | length > 0 and
+    (
+      'créé' in dns_a_result.output[0] or
+      'mis à jour' in dns_a_result.output[0]
+    )
+
+- name: Créer / mettre à jour les enregistrements PTR
+  ansible.windows.win_powershell:
+    script: |
+      $zoneName = "{{ dns_reverse_zone_name }}"
+      $ptrName = "{{ item.ip.split('.')[-1] }}"
+      $fqdn = "{{ item.name }}.{{ dns_forward_zone_name }}."
+      $existing = Get-DnsServerResourceRecord -ZoneName $zoneName -Name $ptrName -RRType "PTR" -ErrorAction SilentlyContinue
+
+      if ($existing) {
+          $currentPtr = $existing.RecordData.PtrDomainName.ToString()
+          if ($currentPtr -ne $fqdn) {
+              Remove-DnsServerResourceRecord -ZoneName $zoneName -RRType "PTR" -Name $ptrName -RecordData $currentPtr -Force
+              Add-DnsServerResourceRecordPtr -ZoneName $zoneName -Name $ptrName -PtrDomainName $fqdn
+              Write-Output "PTR mis à jour"
+          } else {
+              Write-Output "PTR déjà correct"
+          }
+      } else {
+          Add-DnsServerResourceRecordPtr -ZoneName $zoneName -Name $ptrName -PtrDomainName $fqdn
+          Write-Output "PTR créé"
+      }
+  loop: "{{ dns_hosts }}"
+  when:
+    - item.ip is defined
+    - item.create_ptr | default(true) | bool
+  register: dns_ptr_result
+  changed_when: >
+    dns_ptr_result.output is defined and
+    dns_ptr_result.output | length > 0 and
+    (
+      'créé' in dns_ptr_result.output[0] or
+      'mis à jour' in dns_ptr_result.output[0]
+    )

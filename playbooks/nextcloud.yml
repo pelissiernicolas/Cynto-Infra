@@ -1,0 +1,66 @@
+# playbooks/nextcloud.yml
+# SERVICE : Nextcloud (Ubuntu) — préparation serveur, base MariaDB (rôle partagé),
+# installation Nextcloud, HTTPS, post-configuration, PHP, AppAPI/HaRP, mail,
+# intégration LDAPS et politique d'accès.
+# Pré-requis : playbooks/ldaps-prep.yml exécuté (pour la CA AD).
+---
+- name: Préparation du serveur Nextcloud
+  hosts: nextcloud
+  become: true
+  gather_facts: true
+  roles:
+    - base_server
+
+- name: Installation de Nextcloud
+  hosts: nextcloud
+  become: true
+  roles:
+    - nextcloud
+
+- name: Activer HTTPS interne sur Nextcloud
+  hosts: nextcloud
+  become: true
+  roles:
+    - https_internal
+
+- name: Post-configuration Nextcloud
+  hosts: nextcloud
+  become: true
+  roles:
+    - nextcloud_postconfig
+
+- name: Réglages PHP pour Nextcloud
+  hosts: nextcloud
+  become: true
+  roles:
+    - nextcloud_php_tuning
+
+- name: AppAPI Deploy Daemon
+  hosts: nextcloud
+  become: true
+  roles:
+    - nextcloud_appapi_daemon
+
+- name: Basculer AppAPI sur HaRP
+  hosts: nextcloud
+  become: true
+  roles:
+    - nextcloud_appapi_harp
+
+# - name: Configuration mail Nextcloud
+#   hosts: nextcloud
+#   become: true
+#   roles:
+#     - nextcloud_mail
+
+- name: Importer la CA et configurer Nextcloud en LDAPS
+  hosts: nextcloud
+  become: true
+  roles:
+    - nextcloud_ldaps
+
+- name: Appliquer les droits et quotas Nextcloud
+  hosts: nextcloud
+  become: true
+  roles:
+    - nextcloud_access_policy

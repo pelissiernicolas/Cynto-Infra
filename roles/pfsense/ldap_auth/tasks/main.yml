@@ -1,0 +1,18 @@
+- name: Configurer les serveurs LDAP pour AD
+  pfsensible.core.pfsense_authserver_ldap:
+    name: "{{ item.name }}"
+    host: "{{ item.host }}"
+    port: "{{ item.port }}"
+    transport: "{{ item.transport }}"
+    ca: "{{ item.ca }}"
+    basedn: "{{ item.basedn }}"
+    binddn: "{{ item.binddn }}"
+    bindpw: "{{ item.bindpw }}"
+    scope: "{{ item.scope }}"
+    authcn: "{{ item.authcn }}"
+    attr_user: "{{ item.attr_user }}"
+    extended_enabled: "{{ item.extended_enabled | default(false) }}"
+    extended_query: "{{ item.extended_query | default('') }}"
+    state: present
+  loop: "{{ pfsense_ldap_servers }}"
+  no_log: true

@@ -1,0 +1,23 @@
+- name: Créer les règles firewall pfSense qui autorisent les flux nécessaires
+  pfsensible.core.pfsense_rule:
+    name: "{{ item.name }}"
+    interface: "{{ item.interface }}"
+    action: "{{ item.action}}"
+    protocol: "{{ item.protocol }}"
+    source: "{{ item.source }}"
+    destination: "{{ item.destination }}"
+    destination_port: "{{ item.destination_port | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ pfsense_allowing_rules }}"
+
+- name: creer les règles firewall pfSense qui bloquent les flux interdits
+  pfsensible.core.pfsense_rule:
+    name: "{{ item.name }}"
+    interface: "{{ item.interface }}"
+    action: block
+    protocol: "{{ item.protocol}}"
+    source: "{{ item.source }}"
+    destination: "{{ item.destination }}"
+    destination_port: "{{ item.destination_port | default(omit) }}"
+    state: present
+  loop: "{{ pfsense_blocking_rules }}"

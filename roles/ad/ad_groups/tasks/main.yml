@@ -1,0 +1,8 @@
+- name: Créer les groupes AD
+  microsoft.ad.group:
+    name: "{{ item.name }}"
+    scope: "{{ item.scope }}"
+    category: "{{ item.category }}"
+    path: "{{ item.path }}"
+    state: present
+  loop: "{{ ad_groups }}"

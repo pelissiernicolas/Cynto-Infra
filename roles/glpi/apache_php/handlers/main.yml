@@ -1,0 +1,6 @@
+# roles/apache_php/handlers/main.yml
+---
+- name: Redémarrer Apache
+  ansible.builtin.service:
+    name: apache2
+    state: restarted

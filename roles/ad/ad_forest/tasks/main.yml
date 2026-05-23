@@ -1,0 +1,17 @@
+- name: Installer AD DS et DNS
+  ansible.windows.win_feature:
+    name:
+      - AD-Domain-Services
+      - DNS
+    include_management_tools: true
+    state: present
+
+- name: Créer la forêt Active Directory
+  microsoft.ad.domain:
+    dns_domain_name: "{{ ad_domain_name }}"
+    domain_netbios_name: "{{ ad_netbios_name }}"
+    safe_mode_password: "{{ vault_ad_safe_mode_password }}"
+    forest_mode: "{{ ad_forest_mode }}"
+    domain_mode: "{{ ad_domain_mode }}"
+    install_dns: true
+    reboot: true

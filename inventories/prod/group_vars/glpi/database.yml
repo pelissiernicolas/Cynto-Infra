@@ -1,0 +1,15 @@
+# inventories/prod/group_vars/glpi/mariadb.yml
+---
+mariadb_root_password: "{{ vault_mariadb_root_password }}"
+
+glpi_db_name: glpidb
+glpi_db_user: glpi
+glpi_db_password: "{{ vault_glpi_db_password }}"
+
+# Provisionnement via le rôle PARTAGÉ `mariadb` (remplace l'ancien rôle glpi/mariadb).
+mariadb_databases:
+  - name: "{{ glpi_db_name }}"
+    user: "{{ glpi_db_user }}"
+    password: "{{ glpi_db_password }}"
+    priv: "{{ glpi_db_name }}.*:ALL"
+    host: localhost

@@ -1,0 +1,7 @@
+- name: Création des objets Active Directory
+  hosts: primary_dc
+  gather_facts: false
+  roles:
+    - ad_ou
+    - ad_groups
+    - ad_users

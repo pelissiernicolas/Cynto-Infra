@@ -1,0 +1,10 @@
+# inventories/prod/group_vars/nextcloud/15-database.yml
+# Provisionnement de la base via le rôle PARTAGÉ `mariadb`.
+# Remplace la création de base/utilisateur qui était embarquée dans le rôle nextcloud.
+---
+mariadb_databases:
+  - name: "{{ nextcloud_db_name }}"
+    user: "{{ nextcloud_db_user }}"
+    password: "{{ vault_nextcloud_db_password }}"
+    priv: "{{ nextcloud_db_name }}.*:ALL"
+    host: localhost

@@ -1,0 +1,26 @@
+gpo_glpi_agent_name: "GPO - Installation GLPI Agent"
+gpo_glpi_agent_target_ou: "OU=Postes,DC=cynto,DC=tech"
+domain_name: "cynto.tech"
+
+glpi_agent_msi_name: "GLPI-Agent-1.17-x64.msi"
+
+glpi_share_name: "Applications$"
+glpi_share_path: "C:\\Applications"
+glpi_deploy_folder: "GLPI-Agent"
+
+glpi_server_url: "https://srv-glpi.cynto.tech/front/inventory.php"
+glpi_agent_tag: "CYNTO"
+
+glpi_cert_src_path: "/etc/ssl/certs/glpi.crt"
+glpi_cert_name: "glpi.crt"
+
+domain_users_group: "Utilisateurs du domaine"
+domain_computers_group: "Ordinateurs du domaine"
+
+glpi_agent_version: "1.17"
+
+glpi_agent_tasks: "inventory"
+
+glpi_agent_setup_options: "/quiet RUNNOW=1 ADD_FIREWALL_EXCEPTION=1 SERVER='{{ glpi_server_url }}' TAG={{ glpi_agent_tag }} TASKS={{ glpi_agent_tasks }} NO_SSL_CHECK=1"
+
+glpi_deploy_share_unc: "\\\\srv-ad-01\\Applications$\\GLPI-Agent"

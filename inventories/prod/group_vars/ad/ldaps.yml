@@ -1,0 +1,22 @@
+# inventories/prod/group_vars/ad/ldaps.yml
+# Variables AD CS / LDAPS partagées par le contrôleur de domaine.
+# CONSOLIDATION des fichiers d'origine (pfSense, Nextcloud, GLPI) qui définissaient
+# tous ces mêmes variables. Seul le chemin d'export de la CA divergeait :
+#   - pfSense / Nextcloud : C:\Temp\ca-export\...
+#   - GLPI                : C:\Temp\CYNTO-CA\...
+# >>> Valeur canonique retenue : C:\Temp\ca-export\  (voir README, section "À vérifier")
+---
+ad_domain: cynto.tech
+ad_base_dn: "DC=cynto,DC=tech"
+
+ad_dc_fqdn: "srv-ad-01.cynto.tech"
+ad_dc_cert_template_name: "DomainControllerLDAPS"
+
+ad_ca_common_name: "CYNTO-ROOT-CA"
+ad_ca_dn_suffix: "DC=cynto,DC=tech"
+ad_ca_validity_years: 10
+
+ad_ca_export_dir: 'C:\Temp\ca-export'
+ad_ca_cert_export_path: 'C:\Temp\ca-export\cynto-root-ca.cer'
+
+ad_ca_config_string: "srv-ad-01\\CYNTO-ROOT-CA"
