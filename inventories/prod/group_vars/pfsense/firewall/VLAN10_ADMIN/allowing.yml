@@ -1,0 +1,30 @@
+# group_vars/pfsense/firewall/VLAN10_ADMIN/allowing.yml
+# Règles d'AUTORISATION du VLAN d'administration (VLAN10_ADMIN).
+fw_vlan10_admin_allow:
+
+  - name: VLAN10_ADMIN_to_pfSense_SSH
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp
+    source: VLAN10_ADMIN_NET
+    destination: (self)
+    destination_port: 22
+    description: Autoriser SSH vers pfSense depuis VLAN10
+
+  - name: VLAN10_ADMIN_to_pfSense_HTTP
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp
+    source: VLAN10_ADMIN_NET
+    destination: (self)
+    destination_port: 80
+    description: Autoriser HTTP vers pfSense depuis VLAN10
+
+  - name: VLAN10_ADMIN_to_ALL_ADMIN_PORTS
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp
+    source: VLAN10_ADMIN_NET
+    destination: VLAN40_SERVERS
+    destination_port: ADMIN_PORTS
+    description: Administration des serveurs depuis VLAN10

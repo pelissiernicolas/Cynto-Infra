@@ -1,0 +1,22 @@
+# group_vars/pfsense/firewall/VLAN10_ADMIN/blocking.yml
+# Règles de BLOCAGE du VLAN d'administration (VLAN10_ADMIN).
+# Aucune règle de blocage spécifique pour ce VLAN.
+fw_vlan10_admin_block: 
+
+  - name: VLAN10_ADMIN_to_WEB_TCP
+    interface: VLAN10_ADMIN
+    action: block
+    protocol: tcp
+    source: VLAN10_ADMIN_NET
+    destination: any
+    destination_port: WEB_PORTS
+    description: Accès web utilisateurs (TCP)
+
+  - name: VLAN10_ADMIN_to_WEB_UDP
+    interface: VLAN10_ADMIN
+    action: block
+    protocol: udp
+    source: VLAN10_ADMIN_NET
+    destination: any
+    destination_port: WEB_PORTS
+    description: Accès web utilisateurs (UDP)

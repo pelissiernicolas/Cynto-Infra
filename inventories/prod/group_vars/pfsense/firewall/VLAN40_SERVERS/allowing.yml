@@ -1,0 +1,30 @@
+# group_vars/pfsense/firewall/VLAN40_SERVERS/allowing.yml
+# Règles d'AUTORISATION du VLAN serveurs (VLAN40_SERVERS).
+fw_vlan40_servers_allow:
+
+  - name: VLAN40_SERVERS_to_AD_TCP
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: tcp
+    source: VLAN40_SERVERS_NET
+    destination: AD_SERVERS
+    destination_port: AD_PORTS_TCP
+    description: Serveurs vers AD TCP
+
+  - name: VLAN40_SERVERS_to_AD_UDP
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: udp
+    source: VLAN40_SERVERS_NET
+    destination: AD_SERVERS
+    destination_port: AD_PORTS_UDP
+    description: Serveurs vers AD UDP
+
+  - name: VLAN40_SERVERS_to_WEB
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: tcp
+    source: VLAN40_SERVERS_NET
+    destination: any
+    destination_port: WEB_PORTS
+    description: Updates serveurs HTTP HTTPS

@@ -1,0 +1,50 @@
+# group_vars/pfsense/firewall/VLAN20_USERS/allowing.yml
+# Règles d'AUTORISATION du VLAN utilisateurs (VLAN20_USERS).
+fw_vlan20_users_allow:
+
+  - name: VLAN20_USERS_to_DNS_AD_TCP
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp
+    source: VLAN20_USERS_NET
+    destination: AD_SERVERS
+    destination_port: DNS_PORTS
+    description: DNS TCP vers AD
+
+  - name: VLAN20_USERS_to_DNS_AD_UDP
+    interface: VLAN20_USERS
+    action: pass
+    protocol: udp
+    source: VLAN20_USERS_NET
+    destination: AD_SERVERS
+    destination_port: DNS_PORTS
+    description: DNS UDP vers AD
+
+  # pfSense ne propose pas toujours "tcp/udp" pour une règle avec alias de ports :
+  # on scinde en deux règles équivalentes (une TCP, une UDP).
+  - name: VLAN20_USERS_to_WEB_TCP
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp
+    source: VLAN20_USERS_NET
+    destination: any
+    destination_port: WEB_PORTS
+    description: Accès web utilisateurs (TCP)
+
+  - name: VLAN20_USERS_to_WEB_UDP
+    interface: VLAN20_USERS
+    action: pass
+    protocol: udp
+    source: VLAN20_USERS_NET
+    destination: any
+    destination_port: WEB_PORTS
+    description: Accès web utilisateurs (UDP)
+
+  - name: VLAN20_USERS_to_NEXTCLOUD
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp
+    source: VLAN20_USERS_NET
+    destination: NEXTCLOUD_SERVER
+    destination_port: WEB_PORTS
+    description: Accès Nextcloud depuis utilisateurs
