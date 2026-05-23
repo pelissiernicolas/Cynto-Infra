@@ -1,0 +1,73 @@
+---
+server_hostname: srv-zabbix
+server_fqdn: zabbix.cynto.tech
+
+netplan_interface: "{{ ansible_default_ipv4.interface }}"
+# HARMONISATION FUSION : aligné sur le réseau serveurs 10.8.40.0/24 (était 192.168.1.x).
+server_ip_cidr: 10.8.40.15/27
+server_gateway: 10.8.40.1
+server_dns:
+  - 10.8.40.10
+  - 10.8.40.11
+
+timezone: Europe/Paris
+
+
+zabbix_version: "8.0"
+zabbix_repo_url: "https://repo.zabbix.com/zabbix/8.0/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_8.0-0.1%2Bubuntu26.04_all.deb"
+zabbix_db_name: zabbix
+zabbix_db_user: zabbix
+zabbix_db_password: "{{ vault_zabbix_db_password }}"
+zabbix_schema_path: /usr/share/zabbix/sql-scripts/mysql/server.sql.gz
+zabbix_frontend_root: /usr/share/zabbix/ui
+zabbix_frontend_config_path: /etc/zabbix/web/zabbix.conf.php
+zabbix_frontend_db_type: MYSQL
+zabbix_frontend_db_host: localhost
+zabbix_frontend_db_port: "0"
+zabbix_frontend_server_host: localhost
+zabbix_frontend_server_port: "10051"
+zabbix_frontend_server_name: Cynto Zabbix
+zabbix_admin_username: Admin
+zabbix_admin_language: fr_FR
+zabbix_admin_timezone: Europe/Paris
+zabbix_locales:
+  - en_US.UTF-8
+  - fr_FR.UTF-8
+zabbix_default_locale: en_US.UTF-8
+zabbix_disable_http: true
+zabbix_ssl_country: FR
+zabbix_ssl_state: France
+zabbix_ssl_locality: Toulouse
+zabbix_ssl_organization: CYNTO
+zabbix_ssl_organizational_unit: IT
+zabbix_ssl_common_name: "{{ server_fqdn }}"
+zabbix_ssl_days: 3650
+zabbix_ssl_key_path: /etc/ssl/private/zabbix.key
+zabbix_ssl_cert_path: /etc/ssl/certs/zabbix.crt
+zabbix_ssl_csr_path: /etc/ssl/private/zabbix.csr
+zabbix_packages:
+  - zabbix-server-mysql
+  - zabbix-frontend-php
+  - zabbix-apache-conf
+  - zabbix-sql-scripts
+  - zabbix-agent2
+zabbix_apache_modules:
+  - proxy
+  - proxy_fcgi
+  - setenvif
+  - rewrite
+zabbix_php_settings:
+  - key: max_execution_time
+    value: 300
+  - key: memory_limit
+    value: 128M
+  - key: post_max_size
+    value: 16M
+  - key: upload_max_filesize
+    value: 2M
+  - key: max_input_time
+    value: 300
+  - key: max_input_vars
+    value: 10000
+  - key: date.timezone
+    value: "{{ timezone }}"

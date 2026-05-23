@@ -1,0 +1,34 @@
+---
+zabbix_api_url: https://127.0.0.1/api_jsonrpc.php
+zabbix_api_user: "{{ zabbix_admin_username | default('Admin') }}"
+zabbix_api_password: "{{ vault_zabbix_admin_password }}"
+zabbix_api_validate_certs: false
+zabbix_api_host_group: Linux servers
+zabbix_api_template: Linux by Zabbix agent active
+zabbix_api_agent_port: "10050"
+zabbix_api_managed_hosts:
+  - host_name: "{{ hostvars['srv-nextcloud-01'].server_hostname | default('srv-nextcloud') }}"
+    visible_name: "{{ hostvars['srv-nextcloud-01'].server_fqdn | default('nextcloud.cynto.tech') }}"
+    ip: "{{ hostvars['srv-nextcloud-01'].ansible_host }}"
+  - host_name: "{{ hostvars['srv-glpi'].server_hostname | default('srv-glpi') }}"
+    visible_name: "{{ hostvars['srv-glpi'].server_fqdn | default('glpi.cynto.tech') }}"
+    ip: "{{ hostvars['srv-glpi'].ansible_host }}"
+  - host_name: "{{ hostvars['pve-01'].server_hostname | default('pve-01') }}"
+    visible_name: "{{ hostvars['pve-01'].server_fqdn | default('pve-01.cynto.tech') }}"
+    ip: "{{ hostvars['pve-01'].ansible_host }}"
+  - host_name: "{{ hostvars['pve-02'].server_hostname | default('pve-02') }}"
+    visible_name: "{{ hostvars['pve-02'].server_fqdn | default('pve-02.cynto.tech') }}"
+    ip: "{{ hostvars['pve-02'].ansible_host }}"
+  - host_name: "{{ hostvars['qdevice-rpi'].server_hostname | default('qdevice-rpi') }}"
+    visible_name: "{{ hostvars['qdevice-rpi'].server_fqdn | default('qdevice-rpi.cynto.tech') }}"
+    ip: "{{ hostvars['qdevice-rpi'].ansible_host }}"
+  - host_name: "{{ hostvars['srv-ad-01'].server_hostname | default('srv-ad-01') }}"
+    visible_name: "{{ hostvars['srv-ad-01'].server_hostname | default('srv-ad-01') }}.cynto.tech"
+    ip: "{{ hostvars['srv-ad-01'].ansible_host }}"
+    host_group: Windows servers
+    template: Windows by Zabbix agent active
+  - host_name: "{{ hostvars['srv-ad-02'].server_hostname | default('srv-ad-02') }}"
+    visible_name: "{{ hostvars['srv-ad-02'].server_hostname | default('srv-ad-02') }}.cynto.tech"
+    ip: "{{ hostvars['srv-ad-02'].ansible_host }}"
+    host_group: Windows servers
+    template: Windows by Zabbix agent active

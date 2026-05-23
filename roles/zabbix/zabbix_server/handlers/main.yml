@@ -1,0 +1,21 @@
+---
+- name: Mettre à jour le cache APT
+  ansible.builtin.apt:
+    update_cache: true
+    lock_timeout: 300
+
+- name: Redémarrer Zabbix Server
+  ansible.builtin.service:
+    name: zabbix-server
+    state: restarted
+
+- name: Redémarrer Apache
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+
+- name: Redémarrer PHP-FPM
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: restarted
+  loop: "{{ ansible_facts.services | default({}) | dict2items | map(attribute='key') | select('match', '^php.*-fpm\\.service$') | list }}"

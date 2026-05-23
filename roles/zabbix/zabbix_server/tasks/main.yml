@@ -1,0 +1,204 @@
+---
+- name: Installer les prérequis Zabbix
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - gnupg
+      - locales
+      - mariadb-server
+      - python3-pymysql
+    state: present
+    update_cache: true
+    lock_timeout: 300
+
+- name: Activer les locales nécessaires au frontend Zabbix
+  community.general.locale_gen:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ zabbix_locales }}"
+  register: zabbix_locale_gen_result
+  notify: Redémarrer Apache
+
+- name: Définir la locale par défaut du serveur
+  ansible.builtin.lineinfile:
+    path: /etc/default/locale
+    regexp: '^LANG='
+    line: "LANG={{ zabbix_default_locale }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  register: zabbix_default_locale_result
+
+- name: Collecter les services pour détecter PHP-FPM
+  ansible.builtin.service_facts:
+
+- name: Redémarrer PHP-FPM après changement de locale
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: restarted
+  loop: "{{ ansible_facts.services | dict2items | map(attribute='key') | select('match', '^php.*-fpm\\.service$') | list }}"
+  when:
+    - zabbix_locale_gen_result is changed or zabbix_default_locale_result is changed
+
+- name: Installer le dépôt officiel Zabbix {{ zabbix_version }}
+  ansible.builtin.apt:
+    deb: "{{ zabbix_repo_url }}"
+    state: present
+    lock_timeout: 300
+  notify: Mettre à jour le cache APT
+
+- name: Forcer la mise à jour du cache après ajout du dépôt Zabbix
+  ansible.builtin.meta: flush_handlers
+
+- name: Installer Zabbix Server, frontend Apache et agent
+  ansible.builtin.apt:
+    name: "{{ zabbix_packages }}"
+    state: present
+    update_cache: true
+    lock_timeout: 300
+
+- name: Activer les modules Apache nécessaires à Zabbix
+  ansible.builtin.command: "a2enmod {{ item }}"
+  args:
+    creates: "/etc/apache2/mods-enabled/{{ item }}.load"
+  loop: "{{ zabbix_apache_modules }}"
+  notify: Redémarrer Apache
+
+- name: Démarrer et activer MariaDB
+  ansible.builtin.service:
+    name: mariadb
+    state: started
+    enabled: true
+
+- name: Créer la base de données Zabbix
+  community.mysql.mysql_db:
+    name: "{{ zabbix_db_name }}"
+    encoding: utf8mb4
+    collation: utf8mb4_bin
+    state: present
+    login_unix_socket: /run/mysqld/mysqld.sock
+
+- name: Créer l'utilisateur MariaDB Zabbix
+  community.mysql.mysql_user:
+    name: "{{ zabbix_db_user }}"
+    password: "{{ zabbix_db_password }}"
+    priv: "{{ zabbix_db_name }}.*:ALL"
+    host: localhost
+    state: present
+    login_unix_socket: /run/mysqld/mysqld.sock
+
+- name: Vérifier si le schéma Zabbix est déjà importé
+  community.mysql.mysql_query:
+    login_db: "{{ zabbix_db_name }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    query: "SHOW TABLES LIKE 'users'"
+  register: zabbix_schema_check
+  changed_when: false
+
+- name: Importer le schéma initial Zabbix
+  community.mysql.mysql_db:
+    name: "{{ zabbix_db_name }}"
+    state: import
+    target: "{{ zabbix_schema_path }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+  when: zabbix_schema_check.query_result[0] | length == 0
+
+- name: Configurer le mot de passe DB du serveur Zabbix
+  ansible.builtin.lineinfile:
+    path: /etc/zabbix/zabbix_server.conf
+    regexp: '^#?\s*DBPassword='
+    line: "DBPassword={{ zabbix_db_password }}"
+    backup: true
+  notify: Redémarrer Zabbix Server
+
+- name: Configurer le nom de base Zabbix
+  ansible.builtin.lineinfile:
+    path: /etc/zabbix/zabbix_server.conf
+    regexp: '^#?\s*DBName='
+    line: "DBName={{ zabbix_db_name }}"
+    backup: true
+  notify: Redémarrer Zabbix Server
+
+- name: Configurer l'utilisateur DB Zabbix
+  ansible.builtin.lineinfile:
+    path: /etc/zabbix/zabbix_server.conf
+    regexp: '^#?\s*DBUser='
+    line: "DBUser={{ zabbix_db_user }}"
+    backup: true
+  notify: Redémarrer Zabbix Server
+
+- name: Détecter le php.ini utilisé par Apache
+  ansible.builtin.find:
+    paths: /etc/php
+    patterns: php.ini
+    recurse: true
+    file_type: file
+  register: zabbix_php_ini_candidates
+  changed_when: false
+
+- name: Désactiver les directives php_value incompatibles dans la conf Apache Zabbix
+  ansible.builtin.replace:
+    path: /etc/zabbix/apache.conf
+    regexp: '^(\s*)(php_value\s+.*)$'
+    replace: '\1# \2'
+    backup: true
+  notify: Redémarrer Apache
+
+- name: Configurer les réglages PHP Apache pour Zabbix
+  ansible.builtin.lineinfile:
+    path: "{{ item.0.path }}"
+    regexp: "^;?\\s*{{ item.1.key | regex_escape }}\\s*="
+    line: "{{ item.1.key }} = {{ item.1.value }}"
+    backup: true
+  loop: "{{ zabbix_php_ini_candidates.files | product(zabbix_php_settings) | list }}"
+  loop_control:
+    label: "{{ item.0.path }}: {{ item.1.key }}"
+  when: zabbix_php_ini_candidates.files | length > 0
+  notify:
+    - Redémarrer Apache
+    - Redémarrer PHP-FPM
+
+- name: Créer le dossier de configuration web Zabbix
+  ansible.builtin.file:
+    path: "{{ zabbix_frontend_config_path | dirname }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0750"
+
+- name: Déployer la configuration frontend Zabbix
+  ansible.builtin.template:
+    src: zabbix.conf.php.j2
+    dest: "{{ zabbix_frontend_config_path }}"
+    owner: www-data
+    group: www-data
+    mode: "0640"
+    backup: true
+  no_log: true
+
+- name: Configurer le profil administrateur Zabbix
+  community.mysql.mysql_query:
+    login_db: "{{ zabbix_db_name }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    query: >-
+      UPDATE users
+      SET lang = %(language)s,
+          timezone = %(timezone)s
+      WHERE username = %(username)s
+    named_args:
+      language: "{{ zabbix_admin_language }}"
+      timezone: "{{ zabbix_admin_timezone }}"
+      username: "{{ zabbix_admin_username }}"
+  changed_when: zabbix_admin_profile_update.rowcount[0] | default(0) | int > 0
+  register: zabbix_admin_profile_update
+
+- name: Démarrer et activer les services Zabbix
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - zabbix-server
+    - zabbix-agent2
+    - apache2

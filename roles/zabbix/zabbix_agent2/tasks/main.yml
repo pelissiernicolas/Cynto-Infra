@@ -1,0 +1,42 @@
+---
+- name: Installer les prérequis Zabbix Agent 2
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - gnupg
+    state: present
+    update_cache: true
+    lock_timeout: 300
+
+- name: Installer le dépôt officiel Zabbix {{ zabbix_agent_version }}
+  ansible.builtin.apt:
+    deb: "{{ zabbix_agent_repo_url }}"
+    state: present
+    lock_timeout: 300
+  notify: Mettre à jour le cache APT
+
+- name: Forcer la mise à jour du cache après ajout du dépôt Zabbix
+  ansible.builtin.meta: flush_handlers
+
+- name: Installer Zabbix Agent 2
+  ansible.builtin.apt:
+    name: zabbix-agent2
+    state: present
+    update_cache: true
+    lock_timeout: 300
+
+- name: Déployer la configuration Zabbix Agent 2
+  ansible.builtin.template:
+    src: zabbix_agent2.conf.j2
+    dest: /etc/zabbix/zabbix_agent2.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Redémarrer Zabbix Agent 2
+
+- name: Démarrer et activer Zabbix Agent 2
+  ansible.builtin.service:
+    name: zabbix-agent2
+    state: started
+    enabled: true

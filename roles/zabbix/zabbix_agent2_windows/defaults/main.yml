@@ -1,0 +1,8 @@
+---
+zabbix_agent2_windows_version: "7.4.10"
+zabbix_agent2_windows_msi_url: "https://cdn.zabbix.com/zabbix/binaries/stable/7.4/{{ zabbix_agent2_windows_version }}/zabbix_agent2-{{ zabbix_agent2_windows_version }}-windows-amd64-openssl.msi"
+zabbix_agent2_windows_msi_path: "C:\\Windows\\Temp\\zabbix_agent2-{{ zabbix_agent2_windows_version }}-windows-amd64-openssl.msi"
+zabbix_agent_server: 10.8.40.15
+zabbix_agent_server_active: "{{ zabbix_agent_server }}"
+zabbix_agent_hostname: "{{ server_hostname | default(inventory_hostname) }}"
+zabbix_agent_listen_port: "10050"

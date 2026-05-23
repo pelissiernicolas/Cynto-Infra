@@ -12,6 +12,7 @@ collections:
   - name: community.general      # timezone, divers
   - name: community.mysql        # MariaDB (rôle partagé mariadb, nextcloud, glpi)
   - name: community.crypto       # certificats / clés (LDAPS, HTTPS internes)
+  - name: community.zabbix        # rôle partagé zabbix (agent, serveur, proxy)
 
   # Pare-feu
   - name: pfsensible.core        # configuration pfSense

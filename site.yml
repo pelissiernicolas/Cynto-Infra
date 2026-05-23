@@ -26,3 +26,6 @@
 
 # 5. Gestion de parc / ITSM : GLPI
 - import_playbook: playbooks/glpi.yml
+
+# 6. Supervision : Zabbix
+- import_playbook: playbooks/zabbix.yml

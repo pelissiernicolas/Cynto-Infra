@@ -1,0 +1,31 @@
+---
+- name: Déployer Zabbix Server
+  hosts: zabbix
+  become: true
+  gather_facts: true
+  roles:
+    - base_server
+    - zabbix_server
+    - zabbix_https
+
+- name: Déployer Zabbix Agent 2 sur les serveurs Linux
+  hosts: nextcloud:glpi:proxmox:qdevice
+  become: true
+  gather_facts: true
+  roles:
+    - zabbix_agent2
+
+- name: Déployer Zabbix Agent 2 sur les contrôleurs de domaine
+  hosts: domain_controllers
+  gather_facts: false
+  roles:
+    - zabbix_agent2_windows
+
+- name: Enregistrer les serveurs applicatifs dans Zabbix
+  hosts: zabbix
+  become: false
+  gather_facts: false
+  tags:
+    - zabbix_api
+  roles:
+    - zabbix_api_hosts

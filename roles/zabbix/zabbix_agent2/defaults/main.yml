@@ -1,0 +1,11 @@
+---
+zabbix_agent_version: "8.0"
+zabbix_agent_repo_os: "{{ 'ubuntu' if ansible_distribution == 'Ubuntu' else 'debian' }}"
+zabbix_agent_repo_release: "{{ ansible_distribution_version if ansible_distribution == 'Ubuntu' else ansible_distribution_major_version }}"
+zabbix_agent_repo_url: "https://repo.zabbix.com/zabbix/{{ zabbix_agent_version }}/release/{{ zabbix_agent_repo_os }}/pool/main/z/zabbix-release/zabbix-release_latest+{{ zabbix_agent_repo_os }}{{ zabbix_agent_repo_release }}_all.deb"
+zabbix_agent_server: 10.8.40.15
+zabbix_agent_server_active: "{{ zabbix_agent_server }}"
+zabbix_agent_hostname: "{{ server_hostname | default(inventory_hostname) }}"
+zabbix_agent_listen_port: 10050
+zabbix_agent_timeout: 30
+zabbix_agent_include_dir: /etc/zabbix/zabbix_agent2.d

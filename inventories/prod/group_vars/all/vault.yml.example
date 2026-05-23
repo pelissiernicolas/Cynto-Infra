@@ -41,3 +41,13 @@ vault_glpi_admin_password: "CHANGEME"
 vault_glpi_postonly_password: "CHANGEME"
 vault_glpi_tech_password: "CHANGEME"
 vault_glpi_normal_password: "CHANGEME"
+
+# --- Zabbix ---
+
+vault_zabbix_db_password: "CHANGEME"
+vault_zabbix_admin_password: "CHANGEME"
+
+# --- Proxmox / QDevice ---
+vault_proxmox_root_password: "CHANGEME"
+vault_qdevice_ssh_password: "CHANGEME"
+vault_qdevice_become_password: "CHANGEME"

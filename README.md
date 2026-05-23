@@ -148,6 +148,7 @@ ansible-playbook playbooks/ldaps-prep.yml  --ask-vault-pass     # avant tout ser
 ansible-playbook playbooks/pfsense.yml     --ask-vault-pass
 ansible-playbook playbooks/nextcloud.yml   --ask-vault-pass --ask-pass --ask-become-pass
 ansible-playbook playbooks/glpi.yml        --ask-vault-pass --ask-pass --ask-become-pass
+ansible-playbook playbooks/zabbix.yml      --ask-vault-pass --ask-pass --ask-become-pass
 ```
 
 > Note Ubuntu récent (sudo.ws) : si nécessaire, ajouter

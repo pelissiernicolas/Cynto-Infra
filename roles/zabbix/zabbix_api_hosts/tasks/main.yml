@@ -1,0 +1,192 @@
+---
+- name: Se connecter à l'API Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: user.login
+      params:
+        username: "{{ zabbix_api_user }}"
+        password: "{{ zabbix_api_password }}"
+      id: 1
+  register: zabbix_api_login
+  failed_when: zabbix_api_login.json.error is defined
+  no_log: true
+
+- name: Préparer la liste des groupes Zabbix requis
+  ansible.builtin.set_fact:
+    zabbix_api_required_host_groups: "{{ zabbix_api_managed_hosts | map(attribute='host_group', default=zabbix_api_host_group) | unique | list }}"
+    zabbix_api_required_templates: "{{ zabbix_api_managed_hosts | map(attribute='template', default=zabbix_api_template) | unique | list }}"
+
+- name: Récupérer les groupes d'hôtes Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: hostgroup.get
+      params:
+        output:
+          - groupid
+          - name
+        filter:
+          name:
+            - "{{ item }}"
+      id: 2
+  loop: "{{ zabbix_api_required_host_groups }}"
+  register: zabbix_api_host_group_results
+  failed_when: zabbix_api_host_group_results.json.error is defined
+
+- name: Créer les groupes d'hôtes Zabbix manquants
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: hostgroup.create
+      params:
+        name: "{{ item.item }}"
+      id: 4
+  loop: "{{ zabbix_api_host_group_results.results }}"
+  when: item.json.result | length == 0
+  register: zabbix_api_created_host_groups
+  changed_when: true
+  failed_when: zabbix_api_created_host_groups.json.error is defined
+
+- name: Récupérer les groupes d'hôtes Zabbix après création
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: hostgroup.get
+      params:
+        output:
+          - groupid
+          - name
+        filter:
+          name:
+            - "{{ item }}"
+      id: 5
+  loop: "{{ zabbix_api_required_host_groups }}"
+  register: zabbix_api_host_group_results
+  failed_when: zabbix_api_host_group_results.json.error is defined
+
+- name: Récupérer les templates Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: template.get
+      params:
+        output:
+          - templateid
+          - host
+          - name
+        filter:
+          host:
+            - "{{ item }}"
+      id: 3
+  loop: "{{ zabbix_api_required_templates }}"
+  register: zabbix_api_template_results
+  failed_when: zabbix_api_template_results.json.error is defined
+
+- name: Vérifier que les templates existent
+  ansible.builtin.assert:
+    that:
+      - item.json.result | length > 0
+    fail_msg: "Le template Zabbix '{{ item.item }}' est introuvable."
+  loop: "{{ zabbix_api_template_results.results }}"
+
+- name: Vérifier les hôtes déjà présents dans Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: host.get
+      params:
+        output:
+          - hostid
+          - host
+        filter:
+          host:
+            - "{{ item.host_name }}"
+      id: 10
+  loop: "{{ zabbix_api_managed_hosts }}"
+  loop_control:
+    label: "{{ item.host_name }}"
+  register: zabbix_api_existing_hosts
+  failed_when: zabbix_api_existing_hosts.json.error is defined
+
+- name: Créer les hôtes applicatifs dans Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: host.create
+      params:
+        host: "{{ item.item.host_name }}"
+        name: "{{ item.item.visible_name }}"
+        groups:
+          - groupid: "{{ (zabbix_api_host_group_results.results | selectattr('item', 'equalto', item.item.host_group | default(zabbix_api_host_group)) | map(attribute='json.result') | first)[0].groupid }}"
+        templates:
+          - templateid: "{{ (zabbix_api_template_results.results | selectattr('item', 'equalto', item.item.template | default(zabbix_api_template)) | map(attribute='json.result') | first)[0].templateid }}"
+        interfaces:
+          - type: 1
+            main: 1
+            useip: 1
+            ip: "{{ item.item.ip }}"
+            dns: ""
+            port: "{{ zabbix_api_agent_port }}"
+      id: 20
+  loop: "{{ zabbix_api_existing_hosts.results }}"
+  loop_control:
+    label: "{{ item.item.host_name }}"
+  when: item.json.result | length == 0
+  register: zabbix_api_created_hosts
+  changed_when: true
+  failed_when: zabbix_api_created_hosts.json.error is defined
+
+- name: Résumé des hôtes Zabbix gérés
+  ansible.builtin.debug:
+    msg: "{{ item.host_name }} est présent dans Zabbix avec l'agent {{ item.ip }}:{{ zabbix_api_agent_port }}"
+  loop: "{{ zabbix_api_managed_hosts }}"
+  loop_control:
+    label: "{{ item.host_name }}"

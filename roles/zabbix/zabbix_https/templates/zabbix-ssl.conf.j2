@@ -1,0 +1,26 @@
+<VirtualHost *:443>
+    ServerName {{ server_fqdn }}
+    ServerAlias {{ server_hostname }}
+
+    DocumentRoot {{ zabbix_frontend_root }}
+    DirectoryIndex index.php
+
+    <Directory {{ zabbix_frontend_root }}>
+        Options FollowSymLinks
+        AllowOverride None
+        Require all granted
+        CGIPassAuth On
+    </Directory>
+
+    SSLEngine on
+    SSLCertificateFile {{ zabbix_ssl_cert_path }}
+    SSLCertificateKeyFile {{ zabbix_ssl_key_path }}
+
+    Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    ErrorLog ${APACHE_LOG_DIR}/zabbix_ssl_error.log
+    CustomLog ${APACHE_LOG_DIR}/zabbix_ssl_access.log combined
+</VirtualHost>

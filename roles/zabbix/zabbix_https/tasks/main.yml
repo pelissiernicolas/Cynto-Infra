@@ -1,0 +1,100 @@
+---
+- name: Installer les paquets SSL Apache
+  ansible.builtin.apt:
+    name:
+      - openssl
+      - ssl-cert
+    state: present
+    update_cache: true
+    lock_timeout: 300
+
+- name: Générer la clé privée SSL Zabbix
+  community.crypto.openssl_privatekey:
+    path: "{{ zabbix_ssl_key_path }}"
+    size: 2048
+    type: RSA
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Générer la CSR SSL Zabbix
+  community.crypto.openssl_csr:
+    path: "{{ zabbix_ssl_csr_path }}"
+    privatekey_path: "{{ zabbix_ssl_key_path }}"
+    country_name: "{{ zabbix_ssl_country }}"
+    state_or_province_name: "{{ zabbix_ssl_state }}"
+    locality_name: "{{ zabbix_ssl_locality }}"
+    organization_name: "{{ zabbix_ssl_organization }}"
+    organizational_unit_name: "{{ zabbix_ssl_organizational_unit }}"
+    common_name: "{{ zabbix_ssl_common_name }}"
+    subject_alt_name:
+      - "DNS:{{ server_fqdn }}"
+      - "DNS:{{ server_hostname }}"
+      - "IP:{{ server_ip_cidr.split('/')[0] }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Générer le certificat autosigné SSL Zabbix
+  community.crypto.x509_certificate:
+    path: "{{ zabbix_ssl_cert_path }}"
+    privatekey_path: "{{ zabbix_ssl_key_path }}"
+    csr_path: "{{ zabbix_ssl_csr_path }}"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ zabbix_ssl_days }}d"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Apache
+
+- name: Activer les modules Apache HTTPS nécessaires
+  ansible.builtin.command: "a2enmod {{ item }}"
+  args:
+    creates: "/etc/apache2/mods-enabled/{{ item }}.load"
+  loop:
+    - ssl
+    - headers
+    - rewrite
+  notify: Reload Apache
+
+- name: Déployer le vhost HTTPS Zabbix
+  ansible.builtin.template:
+    src: zabbix-ssl.conf.j2
+    dest: /etc/apache2/sites-available/zabbix-ssl.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Apache
+
+- name: Désactiver le site Apache par défaut
+  ansible.builtin.command: a2dissite 000-default.conf
+  register: zabbix_disable_default_site
+  failed_when: false
+  changed_when: "'disabled' in zabbix_disable_default_site.stdout"
+  notify: Reload Apache
+
+- name: Désactiver le site SSL par défaut
+  ansible.builtin.command: a2dissite default-ssl.conf
+  register: zabbix_disable_default_ssl_site
+  failed_when: false
+  changed_when: "'disabled' in zabbix_disable_default_ssl_site.stdout"
+  notify: Reload Apache
+
+- name: Activer le site HTTPS Zabbix
+  ansible.builtin.command: a2ensite zabbix-ssl.conf
+  register: zabbix_enable_https_site
+  changed_when: "'enabled' in zabbix_enable_https_site.stdout"
+  notify: Reload Apache
+
+- name: Désactiver l'écoute HTTP Apache
+  ansible.builtin.lineinfile:
+    path: /etc/apache2/ports.conf
+    regexp: '^Listen\s+80$'
+    state: absent
+    backup: true
+  when: zabbix_disable_http | bool
+  notify: Reload Apache
+
+- name: Vérifier la configuration Apache
+  ansible.builtin.command: apache2ctl configtest
+  changed_when: false
