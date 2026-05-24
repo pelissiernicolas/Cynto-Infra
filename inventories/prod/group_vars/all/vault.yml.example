@@ -46,6 +46,9 @@ vault_glpi_normal_password: "CHANGEME"
 
 vault_zabbix_db_password: "CHANGEME"
 vault_zabbix_admin_password: "CHANGEME"
+vault_zabbix_snmp_community: "CHANGEME"
+vault_zabbix_mail_smtp_password: "CHANGEME"
+vault_zabbix_alert_recipient_email: "admin@example.com"
 
 # --- Proxmox / QDevice ---
 vault_proxmox_root_password: "CHANGEME"

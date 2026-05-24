@@ -1,0 +1,439 @@
+---
+- name: Vérifier les paramètres SMTP Zabbix
+  ansible.builtin.assert:
+    that:
+      - zabbix_mail_smtp_password | length > 0
+      - zabbix_mail_recipient | length > 0
+    fail_msg: "Renseigne vault_zabbix_mail_smtp_password et vault_zabbix_alert_recipient_email dans le Vault avant de configurer l'envoi mail Zabbix."
+  no_log: true
+
+- name: Se connecter à l'API Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: user.login
+      params:
+        username: "{{ zabbix_api_user }}"
+        password: "{{ zabbix_api_password }}"
+      id: 1
+  register: zabbix_mail_api_login
+  failed_when: zabbix_mail_api_login.json.error is defined
+  no_log: true
+
+- name: Installer swaks pour l'envoi mail Zabbix
+  ansible.builtin.apt:
+    name: swaks
+    state: present
+    update_cache: true
+    lock_timeout: 300
+  become: true
+
+- name: Créer le dossier des alert scripts Zabbix
+  ansible.builtin.file:
+    path: "{{ zabbix_mail_alertscripts_path }}"
+    state: directory
+    owner: root
+    group: zabbix
+    mode: "0750"
+  become: true
+
+- name: Déployer les secrets SMTP pour le script swaks
+  ansible.builtin.template:
+    src: free-smtp.env.j2
+    dest: /etc/zabbix/free-smtp.env
+    owner: root
+    group: zabbix
+    mode: "0640"
+  become: true
+  no_log: true
+
+- name: Déployer le script d'envoi mail swaks
+  ansible.builtin.template:
+    src: free-smtp-swaks.sh.j2
+    dest: "{{ zabbix_mail_alertscripts_path }}/{{ zabbix_mail_script_name }}"
+    owner: root
+    group: zabbix
+    mode: "0750"
+  become: true
+
+- name: Récupérer le media type Email
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: mediatype.get
+      params:
+        output:
+          - mediatypeid
+          - name
+        filter:
+          name:
+            - "{{ zabbix_mail_mediatype_name }}"
+      id: 2
+  register: zabbix_mail_mediatype
+  failed_when: zabbix_mail_mediatype.json.error is defined
+  no_log: true
+
+- name: Créer le media type Email si absent
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: mediatype.create
+      params:
+        name: "{{ zabbix_mail_mediatype_name }}"
+        type: 0
+        smtp_server: "{{ zabbix_mail_smtp_server }}"
+        smtp_port: "{{ zabbix_mail_smtp_port }}"
+        smtp_helo: "{{ zabbix_mail_smtp_helo }}"
+        smtp_email: "{{ zabbix_mail_smtp_email }}"
+        smtp_security: "{{ zabbix_mail_smtp_security }}"
+        smtp_verify_peer: "{{ zabbix_mail_smtp_verify_peer }}"
+        smtp_verify_host: "{{ zabbix_mail_smtp_verify_host }}"
+        smtp_authentication: "{{ zabbix_mail_smtp_authentication }}"
+        username: "{{ zabbix_mail_smtp_username }}"
+        passwd: "{{ zabbix_mail_smtp_password }}"
+        status: 0
+      id: 3
+  when: zabbix_mail_mediatype.json.result | length == 0
+  register: zabbix_mail_mediatype_create
+  changed_when: true
+  failed_when: zabbix_mail_mediatype_create.json.error is defined
+  no_log: true
+
+- name: Récupérer le media type Email après création
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: mediatype.get
+      params:
+        output:
+          - mediatypeid
+          - name
+        filter:
+          name:
+            - "{{ zabbix_mail_mediatype_name }}"
+      id: 4
+  register: zabbix_mail_mediatype
+  failed_when: zabbix_mail_mediatype.json.error is defined
+  no_log: true
+
+- name: Mettre à jour le media type Email
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: mediatype.update
+      params:
+        mediatypeid: "{{ zabbix_mail_mediatype.json.result[0].mediatypeid }}"
+        smtp_server: "{{ zabbix_mail_smtp_server }}"
+        smtp_port: "{{ zabbix_mail_smtp_port }}"
+        smtp_helo: "{{ zabbix_mail_smtp_helo }}"
+        smtp_email: "{{ zabbix_mail_smtp_email }}"
+        smtp_security: "{{ zabbix_mail_smtp_security }}"
+        smtp_verify_peer: "{{ zabbix_mail_smtp_verify_peer }}"
+        smtp_verify_host: "{{ zabbix_mail_smtp_verify_host }}"
+        smtp_authentication: "{{ zabbix_mail_smtp_authentication }}"
+        username: "{{ zabbix_mail_smtp_username }}"
+        passwd: "{{ zabbix_mail_smtp_password }}"
+        status: 0
+      id: 5
+  register: zabbix_mail_mediatype_update
+  changed_when: true
+  failed_when: zabbix_mail_mediatype_update.json.error is defined
+  no_log: true
+
+- name: Récupérer le media type script swaks
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: mediatype.get
+      params:
+        output:
+          - mediatypeid
+          - name
+        filter:
+          name:
+            - "{{ zabbix_mail_script_mediatype_name }}"
+      id: 11
+  register: zabbix_mail_script_mediatype
+  failed_when: zabbix_mail_script_mediatype.json.error is defined
+  no_log: true
+
+- name: Créer le media type script swaks
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: mediatype.create
+      params:
+        name: "{{ zabbix_mail_script_mediatype_name }}"
+        type: 1
+        exec_path: "{{ zabbix_mail_script_name }}"
+        status: 0
+        parameters:
+          - sortorder: 0
+            value: "{ALERT.SENDTO}"
+          - sortorder: 1
+            value: "{ALERT.SUBJECT}"
+          - sortorder: 2
+            value: "{ALERT.MESSAGE}"
+        message_templates: "{{ zabbix_mail_message_templates }}"
+      id: 12
+  when: zabbix_mail_script_mediatype.json.result | length == 0
+  register: zabbix_mail_script_mediatype_create
+  changed_when: true
+  failed_when: zabbix_mail_script_mediatype_create.json.error is defined
+  no_log: true
+
+- name: Récupérer le media type script swaks après création
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: mediatype.get
+      params:
+        output:
+          - mediatypeid
+          - name
+        filter:
+          name:
+            - "{{ zabbix_mail_script_mediatype_name }}"
+      id: 13
+  register: zabbix_mail_script_mediatype
+  failed_when: zabbix_mail_script_mediatype.json.error is defined
+  no_log: true
+
+- name: Mettre à jour le media type script swaks
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: mediatype.update
+      params:
+        mediatypeid: "{{ zabbix_mail_script_mediatype.json.result[0].mediatypeid }}"
+        exec_path: "{{ zabbix_mail_script_name }}"
+        status: 0
+        parameters:
+          - sortorder: 0
+            value: "{ALERT.SENDTO}"
+          - sortorder: 1
+            value: "{ALERT.SUBJECT}"
+          - sortorder: 2
+            value: "{ALERT.MESSAGE}"
+        message_templates: "{{ zabbix_mail_message_templates }}"
+      id: 14
+  register: zabbix_mail_script_mediatype_update
+  changed_when: true
+  failed_when: zabbix_mail_script_mediatype_update.json.error is defined
+  no_log: true
+
+- name: Récupérer l'utilisateur destinataire des alertes
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: user.get
+      params:
+        output:
+          - userid
+          - username
+        filter:
+          username:
+            - "{{ zabbix_mail_admin_user }}"
+      id: 6
+  register: zabbix_mail_user
+  failed_when: zabbix_mail_user.json.error is defined
+  no_log: true
+
+- name: Vérifier que l'utilisateur destinataire existe
+  ansible.builtin.assert:
+    that:
+      - zabbix_mail_user.json.result | length > 0
+    fail_msg: "L'utilisateur Zabbix '{{ zabbix_mail_admin_user }}' est introuvable."
+
+- name: Attacher l'adresse mail au compte destinataire
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: user.update
+      params:
+        userid: "{{ zabbix_mail_user.json.result[0].userid }}"
+        medias:
+          - mediatypeid: "{{ zabbix_mail_script_mediatype.json.result[0].mediatypeid }}"
+            sendto:
+              - "{{ zabbix_mail_recipient }}"
+            active: 0
+            severity: "{{ zabbix_mail_enabled_severities }}"
+            period: "1-7,00:00-24:00"
+      id: 7
+  register: zabbix_mail_user_update
+  changed_when: true
+  failed_when: zabbix_mail_user_update.json.error is defined
+  no_log: true
+
+- name: Récupérer l'action mail Cynto
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: action.get
+      params:
+        output:
+          - actionid
+          - name
+        filter:
+          name:
+            - "{{ zabbix_mail_action_name }}"
+      id: 8
+  register: zabbix_mail_action
+  failed_when: zabbix_mail_action.json.error is defined
+  no_log: true
+
+- name: Préparer les paramètres de l'action mail Cynto
+  ansible.builtin.set_fact:
+    zabbix_mail_action_params:
+      name: "{{ zabbix_mail_action_name }}"
+      eventsource: 0
+      status: 0
+      esc_period: 1h
+      filter:
+        evaltype: 0
+        conditions:
+          - conditiontype: 4
+            operator: 5
+            value: "{{ zabbix_mail_action_min_severity }}"
+      operations:
+        - operationtype: 0
+          esc_step_from: 1
+          esc_step_to: 0
+          opmessage_usr:
+            - userid: "{{ zabbix_mail_user.json.result[0].userid }}"
+          opmessage:
+            default_msg: 1
+            mediatypeid: "{{ zabbix_mail_script_mediatype.json.result[0].mediatypeid }}"
+      recovery_operations:
+        - operationtype: 11
+          opmessage:
+            default_msg: 1
+      update_operations:
+        - operationtype: 12
+          opmessage:
+            default_msg: 1
+
+- name: Créer l'action d'alertes mail Cynto
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: action.create
+      params: "{{ zabbix_mail_action_params }}"
+      id: 9
+  when: zabbix_mail_action.json.result | length == 0
+  register: zabbix_mail_action_create
+  changed_when: true
+  failed_when: zabbix_mail_action_create.json.error is defined
+  no_log: true
+
+- name: Mettre à jour l'action d'alertes mail Cynto
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_mail_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: action.update
+      params: "{{ zabbix_mail_action_params | combine({'actionid': zabbix_mail_action.json.result[0].actionid}) }}"
+      id: 10
+  when: zabbix_mail_action.json.result | length > 0
+  register: zabbix_mail_action_update
+  changed_when: true
+  failed_when: zabbix_mail_action_update.json.error is defined
+
+- name: Résumé de la configuration mail Zabbix
+  ansible.builtin.debug:
+    msg: "Alertes mail Zabbix configurées via swaks: expéditeur {{ zabbix_mail_smtp_email }}, destinataire {{ zabbix_mail_recipient }}, action '{{ zabbix_mail_action_name }}'."

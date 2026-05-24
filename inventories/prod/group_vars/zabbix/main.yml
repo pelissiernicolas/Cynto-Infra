@@ -45,6 +45,7 @@ zabbix_ssl_days: 3650
 zabbix_ssl_key_path: /etc/ssl/private/zabbix.key
 zabbix_ssl_cert_path: /etc/ssl/certs/zabbix.crt
 zabbix_ssl_csr_path: /etc/ssl/private/zabbix.csr
+zabbix_pfsense_snmp_community: "{{ vault_zabbix_snmp_community }}"
 zabbix_packages:
   - zabbix-server-mysql
   - zabbix-frontend-php

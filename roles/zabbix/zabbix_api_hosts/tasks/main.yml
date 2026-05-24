@@ -168,13 +168,8 @@
           - groupid: "{{ (zabbix_api_host_group_results.results | selectattr('item', 'equalto', item.item.host_group | default(zabbix_api_host_group)) | map(attribute='json.result') | first)[0].groupid }}"
         templates:
           - templateid: "{{ (zabbix_api_template_results.results | selectattr('item', 'equalto', item.item.template | default(zabbix_api_template)) | map(attribute='json.result') | first)[0].templateid }}"
-        interfaces:
-          - type: 1
-            main: 1
-            useip: 1
-            ip: "{{ item.item.ip }}"
-            dns: ""
-            port: "{{ zabbix_api_agent_port }}"
+        interfaces: "{{ zabbix_api_host_interfaces }}"
+        macros: "{{ zabbix_api_host_macros | default(omit) }}"
       id: 20
   loop: "{{ zabbix_api_existing_hosts.results }}"
   loop_control:
@@ -183,6 +178,39 @@
   register: zabbix_api_created_hosts
   changed_when: true
   failed_when: zabbix_api_created_hosts.json.error is defined
+  no_log: true
+  vars:
+    zabbix_api_host_interfaces: >-
+      {{
+        [
+          {
+            'type': 2,
+            'main': 1,
+            'useip': 1,
+            'ip': item.item.ip,
+            'dns': '',
+            'port': item.item.port | default('161'),
+            'details': {
+              'version': 2,
+              'bulk': 1,
+              'community': '{$SNMP_COMMUNITY}'
+            }
+          }
+        ]
+        if (item.item.interface_type | default('agent')) == 'snmp'
+        else
+        [
+          {
+            'type': 1,
+            'main': 1,
+            'useip': 1,
+            'ip': item.item.ip,
+            'dns': '',
+            'port': item.item.port | default(zabbix_api_agent_port)
+          }
+        ]
+      }}
+    zabbix_api_host_macros: "{{ [{'macro': '{$SNMP_COMMUNITY}', 'value': item.item.snmp_community, 'type': 1}] if (item.item.interface_type | default('agent')) == 'snmp' else omit }}"
 
 - name: Résumé des hôtes Zabbix gérés
   ansible.builtin.debug:

@@ -29,3 +29,9 @@
     - zabbix_api
   roles:
     - zabbix_api_hosts
+    - role: zabbix_api_mail
+      tags:
+        - zabbix_mail
+    - role: zabbix_api_ldaps
+      tags:
+        - zabbix_ldaps

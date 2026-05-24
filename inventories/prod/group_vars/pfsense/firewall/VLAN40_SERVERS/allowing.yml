@@ -23,8 +23,26 @@ fw_vlan40_servers_allow:
   - name: VLAN40_SERVERS_to_WEB
     interface: VLAN40_SERVERS
     action: pass
-    protocol: tcp
+    protocol: tcp/udp
     source: VLAN40_SERVERS_NET
     destination: any
     destination_port: WEB_PORTS
     description: Updates serveurs HTTP HTTPS
+
+  - name: VLAN40_Zabbix_to_PFSENSE_SNMP
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: udp
+    source: 10.8.40.15
+    destination: "(self)"
+    destination_port: 161
+    description: Zabbix vers pfSense SNMP
+
+  - name: VLAN40_Zabbix_to_SNTP_free
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: tcp
+    source: 10.8.40.15
+    destination: any
+    destination_port: 587
+    description: Zabbix vers SNTP Free

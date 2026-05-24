@@ -25,20 +25,20 @@ fw_vlan20_users_allow:
   - name: VLAN20_USERS_to_WEB_TCP
     interface: VLAN20_USERS
     action: pass
-    protocol: tcp
+    protocol: tcp/udp
     source: VLAN20_USERS_NET
     destination: any
     destination_port: WEB_PORTS
     description: Accès web utilisateurs (TCP)
 
-  - name: VLAN20_USERS_to_WEB_UDP
-    interface: VLAN20_USERS
-    action: pass
-    protocol: udp
-    source: VLAN20_USERS_NET
-    destination: any
-    destination_port: WEB_PORTS
-    description: Accès web utilisateurs (UDP)
+  # - name: VLAN20_USERS_to_WEB_UDP
+  #   interface: VLAN20_USERS
+  #   action: pass
+  #   protocol: udp
+  #   source: VLAN20_USERS_NET
+  #   destination: any
+  #   destination_port: WEB_PORTS
+  #   description: Accès web utilisateurs (UDP)
 
   - name: VLAN20_USERS_to_NEXTCLOUD
     interface: VLAN20_USERS

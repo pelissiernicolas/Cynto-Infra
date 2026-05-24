@@ -1,0 +1,13 @@
+---
+pfsense_snmp_enabled: true
+pfsense_snmp_community: "{{ vault_zabbix_snmp_community }}"
+pfsense_snmp_syslocation: Cynto
+pfsense_snmp_syscontact: admin@cynto.tech
+pfsense_snmp_port: "161"
+pfsense_snmp_bindip: ""
+pfsense_snmp_modules:
+  - mibii
+  - netgraph
+  - pf
+  - hostres
+  - ucd

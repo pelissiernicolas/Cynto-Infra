@@ -1,0 +1,47 @@
+---
+zabbix_api_url: https://127.0.0.1/api_jsonrpc.php
+zabbix_api_user: "{{ zabbix_admin_username | default('Admin') }}"
+zabbix_api_password: "{{ vault_zabbix_admin_password }}"
+zabbix_api_validate_certs: false
+
+zabbix_ldaps_directory_name: CYNTO Active Directory LDAPS
+zabbix_ldaps_host: srv-ad-01.cynto.tech
+zabbix_ldaps_port: "636"
+zabbix_ldaps_directories:
+  - name: CYNTO AD 01 LDAPS
+    host: srv-ad-01.cynto.tech
+  - name: CYNTO AD 02 LDAPS
+    host: srv-ad-02.cynto.tech
+zabbix_ldaps_base_dn: DC=cynto,DC=tech
+zabbix_ldaps_user_base_dn: OU=ALL_Utilisateurs,OU=Utilisateurs,DC=cynto,DC=tech
+zabbix_ldaps_group_base_dn: OU=Zabbix-Groupes,OU=Groupes,DC=cynto,DC=tech
+zabbix_ldaps_bind_dn: svc_zabbix@cynto.tech
+zabbix_ldaps_bind_password: "{{ vault_service_account_password }}"
+zabbix_ldaps_search_attribute: sAMAccountName
+zabbix_ldaps_search_filter: "(&(%{attr}=%{user})(|(memberOf=CN=GG_Zabbix_Admins,OU=Zabbix-Groupes,OU=Groupes,DC=cynto,DC=tech)(memberOf=CN=GG_Zabbix_Users,OU=Zabbix-Groupes,OU=Groupes,DC=cynto,DC=tech)))"
+zabbix_ldaps_start_tls: "0"
+zabbix_ldaps_case_sensitive: 0
+zabbix_ldaps_set_default_auth: true
+zabbix_ldaps_jit_status: true
+zabbix_ldaps_user_username_attr: givenName
+zabbix_ldaps_user_lastname_attr: sn
+zabbix_ldaps_user_ref_attr: distinguishedName
+zabbix_ldaps_group_name_attr: cn
+zabbix_ldaps_group_membership_attr: memberOf
+zabbix_ldaps_admin_ad_group: GG_Zabbix_Admins
+zabbix_ldaps_user_ad_group: GG_Zabbix_Users
+zabbix_ldaps_admin_zabbix_group: Zabbix administrators
+zabbix_ldaps_user_zabbix_group: Zabbix users
+zabbix_ldaps_disabled_zabbix_group: Cynto disabled LDAP users
+zabbix_ldaps_admin_role: Super admin role
+zabbix_ldaps_user_role: User role
+zabbix_ldaps_jit_interval: 1h
+
+zabbix_ldaps_dc_hosts:
+  - ip: "10.8.40.10"
+    fqdn: "srv-ad-01.cynto.tech"
+  - ip: "10.8.40.11"
+    fqdn: "srv-ad-02.cynto.tech"
+
+zabbix_ldaps_ca_cert_src: "{{ playbook_dir }}/artifacts/ad-ca/cynto-root-ca.cer"
+zabbix_ldaps_ca_cert_remote_path: /usr/local/share/ca-certificates/cynto-root-ca.crt

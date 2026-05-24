@@ -12,6 +12,9 @@
   roles:
     - base_config
     - dns_resolver
+    - role: snmp
+      tags:
+        - snmp
 
 - name: Création des VLANs et interfaces pfSense
   hosts: pfsense
@@ -33,6 +36,7 @@
 - name: Création des règles firewall pfSense
   hosts: pfsense
   gather_facts: false
+  tags: rules
   collections:
     - pfsensible.core
   roles:

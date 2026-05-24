@@ -24,6 +24,9 @@ ad_ous:
   - name: "GLPI-Groupes"
     path: "OU=Groupes,DC=cynto,DC=tech"
 
+  - name: "Zabbix-Groupes"
+    path: "OU=Groupes,DC=cynto,DC=tech"
+
   - name: "ALL_Utilisateurs"
     path: "OU=Utilisateurs,DC=cynto,DC=tech"
 
@@ -108,6 +111,17 @@ ad_groups:
     category: "security"
     path: "OU=GLPI-Groupes,OU=Groupes,DC=cynto,DC=tech"
 
+### Zabbix Groups
+  - name: "GG_Zabbix_Admins"
+    scope: "global"
+    category: "security"
+    path: "OU=Zabbix-Groupes,OU=Groupes,DC=cynto,DC=tech"
+
+  - name: "GG_Zabbix_Users"
+    scope: "global"
+    category: "security"
+    path: "OU=Zabbix-Groupes,OU=Groupes,DC=cynto,DC=tech"
+
 # -----------------------------------------------------------------------------
 # Comptes de SERVICE (non humains). Gérés en YAML, pas dans le CSV.
 # Mot de passe posé à la création seulement (update_password: on_create dans le
@@ -152,6 +166,17 @@ ad_service_accounts:
     surname: "pfsense"
     display_name: "Service PFSense"
     upn: "svc_pfsense@cynto.tech"
+    password: "{{ vault_service_account_password }}"
+    path: "OU=Comptes de service,OU=Utilisateurs,DC=cynto,DC=tech"
+    enabled: true
+    password_never_expires: true
+    groups: []
+
+  - name: "svc_zabbix"
+    firstname: "svc"
+    surname: "zabbix"
+    display_name: "Service Zabbix"
+    upn: "svc_zabbix@cynto.tech"
     password: "{{ vault_service_account_password }}"
     path: "OU=Comptes de service,OU=Utilisateurs,DC=cynto,DC=tech"
     enabled: true

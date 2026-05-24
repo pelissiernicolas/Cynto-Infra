@@ -1,0 +1,60 @@
+---
+- name: Configurer SNMP pfSense pour Zabbix
+  pfsensible.core.pfsense_phpshell:
+    cmd: |
+      require_once("config.inc");
+      require_once("services.inc");
+
+      global $config;
+
+      if (!is_array($config["snmpd"])) {
+          $config["snmpd"] = array();
+      }
+
+      $changed = false;
+
+      $desired = array(
+          "syslocation" => "{{ pfsense_snmp_syslocation }}",
+          "syscontact" => "{{ pfsense_snmp_syscontact }}",
+          "rocommunity" => "{{ pfsense_snmp_community }}",
+          "pollport" => "{{ pfsense_snmp_port }}",
+          "bindip" => "{{ pfsense_snmp_bindip }}"
+      );
+
+      {% if pfsense_snmp_enabled | bool %}
+      $desired["enable"] = "";
+      {% else %}
+      if (isset($config["snmpd"]["enable"])) {
+          unset($config["snmpd"]["enable"]);
+          $changed = true;
+      }
+      {% endif %}
+
+      foreach ($desired as $key => $value) {
+          if (!array_key_exists($key, $config["snmpd"]) || $config["snmpd"][$key] !== $value) {
+              $config["snmpd"][$key] = $value;
+              $changed = true;
+          }
+      }
+
+      $modules = array();
+      {% for module in pfsense_snmp_modules %}
+      $modules["{{ module }}"] = "";
+      {% endfor %}
+
+      if (!isset($config["snmpd"]["modules"]) || $config["snmpd"]["modules"] !== $modules) {
+          $config["snmpd"]["modules"] = $modules;
+          $changed = true;
+      }
+
+      if ($changed) {
+          write_config("Configure SNMP for Zabbix via Ansible");
+          services_snmpd_configure();
+          echo "CHANGED\n";
+      } else {
+          services_snmpd_configure();
+          echo "OK\n";
+      }
+  register: pfsense_snmp_configure
+  changed_when: "'CHANGED' in pfsense_snmp_configure.stdout"
+  no_log: true

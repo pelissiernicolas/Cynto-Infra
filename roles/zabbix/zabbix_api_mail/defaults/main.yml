@@ -1,0 +1,76 @@
+---
+zabbix_api_url: https://127.0.0.1/api_jsonrpc.php
+zabbix_api_user: "{{ zabbix_admin_username | default('Admin') }}"
+zabbix_api_password: "{{ vault_zabbix_admin_password }}"
+zabbix_api_validate_certs: false
+
+zabbix_mail_mediatype_name: Email
+zabbix_mail_script_mediatype_name: Free SMTP swaks
+zabbix_mail_alertscripts_path: /usr/lib/zabbix/alertscripts
+zabbix_mail_script_name: free-smtp-swaks.sh
+zabbix_mail_smtp_server: smtp.free.fr
+zabbix_mail_smtp_port: "587"
+zabbix_mail_smtp_helo: "{{ server_fqdn | default('zabbix.cynto.tech') }}"
+zabbix_mail_smtp_email: cyntonoreply@free.fr
+zabbix_mail_smtp_authentication: 1
+zabbix_mail_smtp_username: cyntonoreply@free.fr
+zabbix_mail_smtp_password: "{{ vault_zabbix_mail_smtp_password | default('') }}"
+zabbix_mail_smtp_security: 0
+zabbix_mail_smtp_verify_peer: 0
+zabbix_mail_smtp_verify_host: 0
+
+zabbix_mail_admin_user: "{{ zabbix_admin_username | default('Admin') }}"
+zabbix_mail_recipient: "{{ vault_zabbix_alert_recipient_email | default('') }}"
+zabbix_mail_enabled_severities: 63
+zabbix_mail_action_name: Cynto - Alertes mail
+zabbix_mail_action_min_severity: "2"
+zabbix_mail_message_templates:
+  - eventsource: 0
+    recovery: 0
+    subject: "Problem: {EVENT.NAME}"
+    message: |-
+      Problem started at {EVENT.TIME} on {EVENT.DATE}
+      Problem name: {EVENT.NAME}
+      Host: {HOST.NAME}
+      Severity: {EVENT.SEVERITY}
+      Operational data: {EVENT.OPDATA}
+      Original problem ID: {EVENT.ID}
+      {TRIGGER.URL}
+  - eventsource: 0
+    recovery: 1
+    subject: "Resolved: {EVENT.NAME}"
+    message: |-
+      Problem has been resolved at {EVENT.RECOVERY.TIME} on {EVENT.RECOVERY.DATE}
+      Problem name: {EVENT.NAME}
+      Problem duration: {EVENT.DURATION}
+      Host: {HOST.NAME}
+      Severity: {EVENT.SEVERITY}
+      Original problem ID: {EVENT.ID}
+      {TRIGGER.URL}
+  - eventsource: 0
+    recovery: 2
+    subject: "Updated: {EVENT.NAME}"
+    message: |-
+      {USER.FULLNAME} {EVENT.UPDATE.ACTION} problem at {EVENT.UPDATE.DATE} {EVENT.UPDATE.TIME}.
+      {EVENT.UPDATE.MESSAGE}
+      Current problem status is {EVENT.STATUS}, age is {EVENT.AGE}, acknowledged: {EVENT.ACK.STATUS}.
+  - eventsource: 1
+    recovery: 0
+    subject: "Discovery: {DISCOVERY.DEVICE.IPADDRESS}"
+    message: |-
+      Discovery rule: {DISCOVERY.RULE.NAME}
+      Device IP: {DISCOVERY.DEVICE.IPADDRESS}
+      Device DNS: {DISCOVERY.DEVICE.DNS}
+      Device status: {DISCOVERY.DEVICE.STATUS}
+      Device uptime: {DISCOVERY.DEVICE.UPTIME}
+      Device service name: {DISCOVERY.SERVICE.NAME}
+      Device service port: {DISCOVERY.SERVICE.PORT}
+      Device service status: {DISCOVERY.SERVICE.STATUS}
+      Device service uptime: {DISCOVERY.SERVICE.UPTIME}
+  - eventsource: 2
+    recovery: 0
+    subject: "Autoregistration: {HOST.HOST}"
+    message: |-
+      Host name: {HOST.HOST}
+      Host IP: {HOST.IP}
+      Agent port: {HOST.PORT}

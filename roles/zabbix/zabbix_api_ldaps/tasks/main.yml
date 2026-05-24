@@ -1,0 +1,392 @@
+---
+- name: Installer les paquets LDAP pour Zabbix
+  ansible.builtin.apt:
+    name:
+      - php-ldap
+      - ldap-utils
+      - openssl
+    state: present
+    update_cache: true
+    lock_timeout: 300
+  become: true
+
+- name: Ajouter les contrôleurs de domaine dans /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^{{ item.ip }}\\s+{{ item.fqdn }}"
+    line: "{{ item.ip }} {{ item.fqdn }}"
+    state: present
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ zabbix_ldaps_dc_hosts }}"
+  become: true
+
+- name: Copier le certificat CA AD sur Zabbix
+  ansible.builtin.copy:
+    src: "{{ zabbix_ldaps_ca_cert_src }}"
+    dest: /tmp/cynto-root-ca.cer
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Convertir le certificat CA AD en CRT PEM
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -inform
+      - DER
+      - -in
+      - /tmp/cynto-root-ca.cer
+      - -out
+      - "{{ zabbix_ldaps_ca_cert_remote_path }}"
+  changed_when: true
+  become: true
+
+- name: Déclarer la CA LDAPS système
+  ansible.builtin.lineinfile:
+    path: /etc/ldap/ldap.conf
+    regexp: '^TLS_CACERT\s+'
+    line: "TLS_CACERT {{ zabbix_ldaps_ca_cert_remote_path }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Mettre à jour les certificats système
+  ansible.builtin.command: update-ca-certificates
+  changed_when: false
+  become: true
+
+- name: Tester le bind LDAPS Zabbix vers AD
+  ansible.builtin.command:
+    argv:
+      - ldapwhoami
+      - -x
+      - -H
+      - "ldaps://{{ zabbix_ldaps_host }}:{{ zabbix_ldaps_port }}"
+      - -D
+      - "{{ zabbix_ldaps_bind_dn }}"
+      - -w
+      - "{{ zabbix_ldaps_bind_password }}"
+  register: zabbix_ldaps_bind_test
+  changed_when: false
+  no_log: true
+
+- name: Se connecter à l'API Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: user.login
+      params:
+        username: "{{ zabbix_api_user }}"
+        password: "{{ zabbix_api_password }}"
+      id: 1
+  register: zabbix_ldaps_api_login
+  failed_when: zabbix_ldaps_api_login.json.error is defined
+  no_log: true
+
+- name: Préparer les paramètres du user directory LDAPS
+  ansible.builtin.set_fact:
+    zabbix_ldaps_base_directory_params:
+      idp_type: 1
+      port: "{{ zabbix_ldaps_port }}"
+      base_dn: "{{ zabbix_ldaps_user_base_dn }}"
+      bind_dn: "{{ zabbix_ldaps_bind_dn }}"
+      bind_password: "{{ zabbix_ldaps_bind_password }}"
+      search_attribute: "{{ zabbix_ldaps_search_attribute }}"
+      search_filter: "{{ zabbix_ldaps_search_filter }}"
+      start_tls: "{{ zabbix_ldaps_start_tls }}"
+      provision_status: "{{ 1 if zabbix_ldaps_jit_status | bool else 0 }}"
+      group_name: "{{ zabbix_ldaps_group_name_attr }}"
+      group_membership: "{{ zabbix_ldaps_group_membership_attr }}"
+      user_username: "{{ zabbix_ldaps_user_username_attr }}"
+      user_lastname: "{{ zabbix_ldaps_user_lastname_attr }}"
+      user_ref_attr: "{{ zabbix_ldaps_user_ref_attr }}"
+  no_log: true
+
+- name: Récupérer les groupes utilisateurs Zabbix requis pour LDAPS
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_ldaps_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: usergroup.get
+      params:
+        output:
+          - usrgrpid
+          - name
+        filter:
+          name:
+            - "{{ item }}"
+      id: 20
+  loop:
+    - "{{ zabbix_ldaps_admin_zabbix_group }}"
+    - "{{ zabbix_ldaps_user_zabbix_group }}"
+    - "{{ zabbix_ldaps_disabled_zabbix_group }}"
+  register: zabbix_ldaps_usergroup_results
+  failed_when: zabbix_ldaps_usergroup_results.json.error is defined
+  no_log: true
+
+- name: Créer les groupes Zabbix LDAPS manquants
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_ldaps_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: usergroup.create
+      params:
+        name: "{{ item.item }}"
+        gui_access: "{{ 3 if item.item == zabbix_ldaps_disabled_zabbix_group else 0 }}"
+        users_status: "{{ 1 if item.item == zabbix_ldaps_disabled_zabbix_group else 0 }}"
+      id: 21
+  when:
+    - item.item != zabbix_ldaps_admin_zabbix_group
+    - item.json.result | length == 0
+  loop: "{{ zabbix_ldaps_usergroup_results.results }}"
+  register: zabbix_ldaps_disabled_group_create
+  changed_when: true
+  failed_when: zabbix_ldaps_disabled_group_create.json.error is defined
+  no_log: true
+
+- name: Récupérer les groupes utilisateurs Zabbix requis après création
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_ldaps_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: usergroup.get
+      params:
+        output:
+          - usrgrpid
+          - name
+        filter:
+          name:
+            - "{{ item }}"
+      id: 22
+  loop:
+    - "{{ zabbix_ldaps_admin_zabbix_group }}"
+    - "{{ zabbix_ldaps_user_zabbix_group }}"
+    - "{{ zabbix_ldaps_disabled_zabbix_group }}"
+  register: zabbix_ldaps_usergroup_results
+  failed_when: zabbix_ldaps_usergroup_results.json.error is defined
+  no_log: true
+
+- name: Vérifier les groupes Zabbix requis pour LDAPS
+  ansible.builtin.assert:
+    that:
+      - item.json.result | length > 0
+    fail_msg: "Le groupe utilisateur Zabbix '{{ item.item }}' est introuvable."
+  loop: "{{ zabbix_ldaps_usergroup_results.results }}"
+
+- name: Récupérer les rôles Zabbix requis pour LDAPS
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_ldaps_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: role.get
+      params:
+        output:
+          - roleid
+          - name
+        filter:
+          name:
+            - "{{ item }}"
+      id: 23
+  loop:
+    - "{{ zabbix_ldaps_admin_role }}"
+    - "{{ zabbix_ldaps_user_role }}"
+  register: zabbix_ldaps_role_results
+  failed_when: zabbix_ldaps_role_results.json.error is defined
+  no_log: true
+
+- name: Vérifier les rôles Zabbix requis pour LDAPS
+  ansible.builtin.assert:
+    that:
+      - item.json.result | length > 0
+    fail_msg: "Le rôle Zabbix '{{ item.item }}' est introuvable."
+  loop: "{{ zabbix_ldaps_role_results.results }}"
+
+- name: Compléter les paramètres JIT du user directory LDAPS
+  ansible.builtin.set_fact:
+    zabbix_ldaps_base_directory_params: "{{ zabbix_ldaps_base_directory_params | combine(zabbix_ldaps_jit_params) }}"
+  when: zabbix_ldaps_jit_status | bool
+  no_log: true
+  vars:
+    zabbix_ldaps_admin_usrgrpid: "{{ (zabbix_ldaps_usergroup_results.results | selectattr('item', 'equalto', zabbix_ldaps_admin_zabbix_group) | map(attribute='json.result') | first)[0].usrgrpid }}"
+    zabbix_ldaps_user_usrgrpid: "{{ (zabbix_ldaps_usergroup_results.results | selectattr('item', 'equalto', zabbix_ldaps_user_zabbix_group) | map(attribute='json.result') | first)[0].usrgrpid }}"
+    zabbix_ldaps_admin_roleid: "{{ (zabbix_ldaps_role_results.results | selectattr('item', 'equalto', zabbix_ldaps_admin_role) | map(attribute='json.result') | first)[0].roleid }}"
+    zabbix_ldaps_user_roleid: "{{ (zabbix_ldaps_role_results.results | selectattr('item', 'equalto', zabbix_ldaps_user_role) | map(attribute='json.result') | first)[0].roleid }}"
+    zabbix_ldaps_jit_params:
+      provision_groups:
+        - name: "{{ zabbix_ldaps_admin_ad_group }}"
+          roleid: "{{ zabbix_ldaps_admin_roleid }}"
+          user_groups:
+            - usrgrpid: "{{ zabbix_ldaps_admin_usrgrpid }}"
+        - name: "{{ zabbix_ldaps_user_ad_group }}"
+          roleid: "{{ zabbix_ldaps_user_roleid }}"
+          user_groups:
+            - usrgrpid: "{{ zabbix_ldaps_user_usrgrpid }}"
+
+- name: Récupérer le user directory LDAPS Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_ldaps_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: userdirectory.get
+      params:
+        output: extend
+      id: 2
+  register: zabbix_ldaps_directory
+  failed_when: zabbix_ldaps_directory.json.error is defined
+
+- name: Filtrer le user directory LDAPS Zabbix
+  ansible.builtin.set_fact:
+    zabbix_ldaps_directory_matches_by_name: "{{ zabbix_ldaps_directory_matches_by_name | default({}) | combine({item.name: (zabbix_ldaps_directory.json.result | selectattr('name', 'equalto', item.name) | list)}) }}"
+  loop: "{{ zabbix_ldaps_directories }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Créer le user directory LDAPS Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_ldaps_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: userdirectory.create
+      params: "{{ zabbix_ldaps_base_directory_params | combine({'name': item.name, 'host': 'ldaps://' ~ item.host}) }}"
+      id: 3
+  loop: "{{ zabbix_ldaps_directories }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: zabbix_ldaps_directory_matches_by_name[item.name] | length == 0
+  register: zabbix_ldaps_directory_create
+  changed_when: true
+  failed_when: zabbix_ldaps_directory_create.json.error is defined
+  no_log: true
+
+- name: Mettre à jour le user directory LDAPS Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_ldaps_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: userdirectory.update
+      params: "{{ zabbix_ldaps_base_directory_params | combine({'name': item.name, 'host': 'ldaps://' ~ item.host, 'userdirectoryid': zabbix_ldaps_directory_matches_by_name[item.name][0].userdirectoryid}) }}"
+      id: 4
+  loop: "{{ zabbix_ldaps_directories }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: zabbix_ldaps_directory_matches_by_name[item.name] | length > 0
+  register: zabbix_ldaps_directory_update
+  changed_when: true
+  failed_when: zabbix_ldaps_directory_update.json.error is defined
+  no_log: true
+
+- name: Récupérer le user directory LDAPS final
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_ldaps_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: userdirectory.get
+      params:
+        output:
+          - userdirectoryid
+          - name
+      id: 5
+  register: zabbix_ldaps_directory_final
+  failed_when: zabbix_ldaps_directory_final.json.error is defined
+  no_log: true
+
+- name: Filtrer le user directory LDAPS final
+  ansible.builtin.set_fact:
+    zabbix_ldaps_directory_final_matches: "{{ zabbix_ldaps_directory_final.json.result | selectattr('name', 'equalto', zabbix_ldaps_directories[0].name) | list }}"
+  no_log: true
+
+- name: Activer l'authentification LDAP dans Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_ldaps_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: authentication.update
+      params: "{{ zabbix_ldaps_auth_params }}"
+      id: 6
+  register: zabbix_ldaps_auth_update
+  changed_when: true
+  failed_when: zabbix_ldaps_auth_update.json.error is defined
+  no_log: true
+  vars:
+    zabbix_ldaps_disabled_usrgrpid: "{{ (zabbix_ldaps_usergroup_results.results | selectattr('item', 'equalto', zabbix_ldaps_disabled_zabbix_group) | map(attribute='json.result') | first)[0].usrgrpid }}"
+    zabbix_ldaps_auth_base_params:
+      ldap_auth_enabled: 1
+      ldap_case_sensitive: "{{ zabbix_ldaps_case_sensitive }}"
+      ldap_userdirectoryid: "{{ zabbix_ldaps_directory_final_matches[0].userdirectoryid }}"
+      authentication_type: "{{ 1 if zabbix_ldaps_set_default_auth | bool else 0 }}"
+    zabbix_ldaps_auth_jit_params:
+      ldap_jit_status: "{{ 1 if zabbix_ldaps_jit_status | bool else 0 }}"
+      disabled_usrgrpid: "{{ zabbix_ldaps_disabled_usrgrpid }}"
+      jit_provision_interval: "{{ zabbix_ldaps_jit_interval }}"
+    zabbix_ldaps_auth_params: "{{ zabbix_ldaps_auth_base_params | combine(zabbix_ldaps_auth_jit_params if zabbix_ldaps_jit_status | bool else {}) }}"
+
+- name: Résumé LDAPS Zabbix
+  ansible.builtin.debug:
+    msg: "LDAPS Zabbix activé avec les annuaires {{ zabbix_ldaps_directories | map(attribute='name') | join(', ') }}. Annuaire par défaut: {{ zabbix_ldaps_directories[0].name }}. Authentification par défaut: {{ 'LDAP' if zabbix_ldaps_set_default_auth | bool else 'Interne' }}."
