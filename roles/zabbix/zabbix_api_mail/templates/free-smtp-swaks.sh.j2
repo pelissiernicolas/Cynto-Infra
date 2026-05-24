@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+. /etc/zabbix/free-smtp.env
+
+TO="$1"
+SUBJECT="$2"
+BODY="$3"
+
+exec /usr/bin/swaks \
+  --to "$TO" \
+  --from "$SMTP_FROM" \
+  --server "$SMTP_SERVER" \
+  --port "$SMTP_PORT" \
+  --auth \
+  --auth-user "$SMTP_USER" \
+  --auth-password "$SMTP_PASSWORD" \
+  --header "Subject: $SUBJECT" \
+  --body "$BODY"
