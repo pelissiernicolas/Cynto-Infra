@@ -1,0 +1,9 @@
+---
+switch_snmp_enabled: true
+switch_snmp_community: "{{ vault_zabbix_snmp_community }}"
+switch_snmp_location: Cynto
+switch_snmp_contact: admin@cynto.tech
+switch_snmp_zabbix_server: 10.8.40.15
+switch_snmp_save_config: changed
+switch_snmp_view: Default
+switch_management_gateway: 10.8.99.1

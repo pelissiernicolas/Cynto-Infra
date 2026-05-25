@@ -38,6 +38,15 @@ fw_vlan40_servers_allow:
     destination_port: 161
     description: Zabbix vers pfSense SNMP
 
+  - name: VLAN40_Zabbix_to_SG500_SNMP
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: udp
+    source: 10.8.40.15
+    destination: 10.8.99.2
+    destination_port: 161
+    description: Zabbix vers switch SG500 SNMP
+
   - name: VLAN40_Zabbix_to_SNTP_free
     interface: VLAN40_SERVERS
     action: pass

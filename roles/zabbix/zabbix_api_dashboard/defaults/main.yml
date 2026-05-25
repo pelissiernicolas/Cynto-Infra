@@ -1,0 +1,111 @@
+---
+zabbix_api_url: https://127.0.0.1/api_jsonrpc.php
+zabbix_api_user: "{{ zabbix_admin_username | default('Admin') }}"
+zabbix_api_password: "{{ vault_zabbix_admin_password }}"
+zabbix_api_validate_certs: false
+
+zabbix_dashboard_name: Cynto Infra
+zabbix_dashboard_display_period: 30
+zabbix_dashboard_auto_start: 1
+zabbix_dashboard_share_groups:
+  - name: Zabbix administrators
+    permission: 3
+  - name: Zabbix users
+    permission: 2
+
+zabbix_dashboard_pages:
+  - name: Vue globale
+    display_period: 30
+    widgets:
+      - type: problems
+        name: Problemes actifs
+        x: 0
+        y: 0
+        width: 36
+        height: 8
+      - type: problemsbysv
+        name: Problemes par severite
+        x: 36
+        y: 0
+        width: 18
+        height: 8
+      - type: hostavail
+        name: Disponibilite des hotes
+        x: 54
+        y: 0
+        width: 18
+        height: 8
+      - type: problemhosts
+        name: Hotes en probleme
+        x: 0
+        y: 8
+        width: 24
+        height: 6
+      - type: systeminfo
+        name: Informations systeme
+        x: 24
+        y: 8
+        width: 24
+        height: 6
+      - type: actionlog
+        name: Dernieres notifications
+        x: 48
+        y: 8
+        width: 24
+        height: 6
+
+  - name: Services critiques
+    display_period: 30
+    widgets:
+      - type: problems
+        name: Incidents services
+        x: 0
+        y: 0
+        width: 48
+        height: 10
+      - type: hostavail
+        name: Agents et SNMP
+        x: 48
+        y: 0
+        width: 24
+        height: 10
+      - type: problemhosts
+        name: Hotes impactes
+        x: 0
+        y: 10
+        width: 36
+        height: 7
+      - type: actionlog
+        name: Historique actions
+        x: 36
+        y: 10
+        width: 36
+        height: 7
+
+  - name: Exploitation
+    display_period: 30
+    widgets:
+      - type: hostnavigator
+        name: Navigateur hotes
+        x: 0
+        y: 0
+        width: 18
+        height: 14
+      - type: problems
+        name: Probleme selection / global
+        x: 18
+        y: 0
+        width: 36
+        height: 14
+      - type: systeminfo
+        name: Etat Zabbix
+        x: 54
+        y: 0
+        width: 18
+        height: 7
+      - type: problemsbysv
+        name: Severites
+        x: 54
+        y: 7
+        width: 18
+        height: 7

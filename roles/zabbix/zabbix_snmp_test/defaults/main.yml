@@ -1,0 +1,8 @@
+---
+zabbix_snmp_test_targets:
+  - name: sw-sg500-01
+    ip: 10.8.99.2
+    community: "{{ zabbix_switch_snmp_community }}"
+  - name: fw-pfsense
+    ip: "{{ hostvars['fw-pfsense'].ansible_host | default('192.168.10.17') }}"
+    community: "{{ zabbix_pfsense_snmp_community }}"

@@ -1,0 +1,94 @@
+---
+zabbix_api_url: https://127.0.0.1/api_jsonrpc.php
+zabbix_api_user: "{{ zabbix_admin_username | default('Admin') }}"
+zabbix_api_password: "{{ vault_zabbix_admin_password }}"
+zabbix_api_validate_certs: false
+
+zabbix_map_name: Cynto - Infrastructure
+zabbix_map_width: 1200
+zabbix_map_height: 760
+zabbix_map_default_icon_name: Server_(96)
+zabbix_map_network_icon_name: Network_(96)
+
+zabbix_map_elements:
+  - key: internet
+    label: Internet
+    type: label
+    x: 530
+    y: 20
+  - key: fw-pfsense
+    host: "{{ hostvars['fw-pfsense'].server_hostname | default('fw-pfsense') }}"
+    label: pfSense
+    icon: network
+    x: 530
+    y: 120
+  - key: sw-sg500-01
+    host: "{{ hostvars['sw-sg500-01'].server_hostname | default('sw-sg500-01') }}"
+    label: SG500-52
+    icon: network
+    x: 530
+    y: 240
+  - key: pve-01
+    host: "{{ hostvars['pve-01'].server_hostname | default('pve-01') }}"
+    label: pve-01
+    x: 260
+    y: 380
+  - key: pve-02
+    host: "{{ hostvars['pve-02'].server_hostname | default('pve-02') }}"
+    label: pve-02
+    x: 800
+    y: 380
+  - key: qdevice-rpi
+    host: "{{ hostvars['qdevice-rpi'].server_hostname | default('qdevice-rpi') }}"
+    label: qDevice
+    x: 530
+    y: 380
+
+zabbix_map_vm_elements:
+  - key: srv-zabbix-01
+    host: "{{ hostvars['srv-zabbix-01'].server_hostname | default('srv-zabbix') }}"
+    label: Zabbix
+    hypervisor: pve-01
+    x: 80
+    y: 520
+  - key: srv-nextcloud-01
+    host: "{{ hostvars['srv-nextcloud-01'].server_hostname | default('srv-nextcloud') }}"
+    label: Nextcloud
+    hypervisor: pve-01
+    x: 250
+    y: 520
+  - key: srv-ad-01
+    host: "{{ hostvars['srv-ad-01'].server_hostname | default('srv-ad-01') }}"
+    label: AD01
+    hypervisor: pve-01
+    x: 420
+    y: 520
+  - key: srv-glpi
+    host: "{{ hostvars['srv-glpi'].server_hostname | default('srv-glpi') }}"
+    label: GLPI
+    hypervisor: pve-02
+    x: 710
+    y: 520
+  - key: srv-ad-02
+    host: "{{ hostvars['srv-ad-02'].server_hostname | default('srv-ad-02') }}"
+    label: AD02
+    hypervisor: pve-02
+    x: 880
+    y: 520
+
+zabbix_map_static_links:
+  - from: internet
+    to: fw-pfsense
+    label: WAN
+  - from: fw-pfsense
+    to: sw-sg500-01
+    label: LAN / VLANs
+  - from: sw-sg500-01
+    to: pve-01
+    label: trunk
+  - from: sw-sg500-01
+    to: pve-02
+    label: trunk
+  - from: sw-sg500-01
+    to: qdevice-rpi
+    label: quorum

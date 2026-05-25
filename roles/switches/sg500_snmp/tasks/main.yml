@@ -1,0 +1,63 @@
+---
+- name: Vérifier le niveau de privilège CLI du switch
+  ansible.netcommon.cli_command:
+    command: show privilege
+  register: switch_privilege_check
+  changed_when: false
+
+- name: Afficher le niveau de privilège CLI du switch
+  ansible.builtin.debug:
+    var: switch_privilege_check.stdout
+
+- name: Lire la route par défaut actuelle du switch
+  ansible.netcommon.cli_command:
+    command: show ip route
+  register: switch_ip_route
+  changed_when: false
+  failed_when: false
+
+- name: Afficher la route par défaut actuelle du switch
+  ansible.builtin.debug:
+    msg: "{{ switch_ip_route.stdout | default('Commande show ip route indisponible') }}"
+
+- name: Lire la configuration SNMP actuelle
+  ansible.netcommon.cli_command:
+    command: show snmp
+  register: switch_snmp_running_config
+  changed_when: false
+  failed_when: false
+
+- name: Afficher la configuration SNMP actuelle
+  ansible.builtin.debug:
+    msg: "{{ switch_snmp_running_config.stdout | regex_replace(switch_snmp_community, '***') }}"
+
+- name: Configurer SNMP v2c sur Cisco SG500 en CLI
+  ansible.netcommon.cli_command:
+    command: |
+      configure terminal
+      ip default-gateway {{ switch_management_gateway }}
+      snmp-server server
+      snmp-server community {{ switch_snmp_community }} view {{ switch_snmp_view }} ro
+      snmp-server location {{ switch_snmp_location }}
+      snmp-server contact {{ switch_snmp_contact }}
+      snmp-server host {{ switch_snmp_zabbix_server }} traps version 2c {{ switch_snmp_community }}
+      end
+  when: switch_snmp_enabled | bool
+  register: switch_snmp_configure
+  changed_when: true
+  no_log: true
+
+- name: Sauvegarder la configuration du switch
+  ansible.netcommon.cli_command:
+    command: copy running-config startup-config
+    prompt:
+      - "Overwrite file.*"
+      - "Are you sure.*"
+      - "\\[confirm\\]"
+    answer:
+      - "Y"
+      - "Y"
+      - "\r"
+  when:
+    - switch_snmp_enabled | bool
+    - switch_snmp_configure is changed

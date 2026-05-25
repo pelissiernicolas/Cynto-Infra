@@ -299,6 +299,12 @@
         output:
           - userid
           - username
+        selectMedias:
+          - mediatypeid
+          - sendto
+          - active
+          - severity
+          - period
         filter:
           username:
             - "{{ zabbix_mail_admin_user }}"
@@ -312,6 +318,10 @@
     that:
       - zabbix_mail_user.json.result | length > 0
     fail_msg: "L'utilisateur Zabbix '{{ zabbix_mail_admin_user }}' est introuvable."
+
+- name: Préserver les médias Zabbix existants
+  ansible.builtin.set_fact:
+    zabbix_mail_preserved_medias: "{{ zabbix_mail_user.json.result[0].medias | default([]) | rejectattr('mediatypeid', 'equalto', zabbix_mail_script_mediatype.json.result[0].mediatypeid) | list }}"
 
 - name: Attacher l'adresse mail au compte destinataire
   ansible.builtin.uri:
@@ -327,18 +337,20 @@
       method: user.update
       params:
         userid: "{{ zabbix_mail_user.json.result[0].userid }}"
-        medias:
-          - mediatypeid: "{{ zabbix_mail_script_mediatype.json.result[0].mediatypeid }}"
-            sendto:
-              - "{{ zabbix_mail_recipient }}"
-            active: 0
-            severity: "{{ zabbix_mail_enabled_severities }}"
-            period: "1-7,00:00-24:00"
+        medias: "{{ zabbix_mail_preserved_medias + [zabbix_mail_media] }}"
       id: 7
   register: zabbix_mail_user_update
   changed_when: true
   failed_when: zabbix_mail_user_update.json.error is defined
   no_log: true
+  vars:
+    zabbix_mail_media:
+      mediatypeid: "{{ zabbix_mail_script_mediatype.json.result[0].mediatypeid }}"
+      sendto:
+        - "{{ zabbix_mail_recipient }}"
+      active: 0
+      severity: "{{ zabbix_mail_enabled_severities }}"
+      period: "1-7,00:00-24:00"
 
 - name: Récupérer l'action mail Cynto
   ansible.builtin.uri:

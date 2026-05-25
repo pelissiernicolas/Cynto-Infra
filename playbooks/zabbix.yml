@@ -32,6 +32,18 @@
     - role: zabbix_api_mail
       tags:
         - zabbix_mail
+    - role: zabbix_api_glpi
+      tags:
+        - zabbix_glpi
     - role: zabbix_api_ldaps
       tags:
         - zabbix_ldaps
+    - role: zabbix_api_dashboard
+      tags:
+        - zabbix_dashboard
+    - role: zabbix_api_maps
+      tags:
+        - zabbix_maps
+    - role: zabbix_snmp_test
+      tags:
+        - zabbix_snmp_test

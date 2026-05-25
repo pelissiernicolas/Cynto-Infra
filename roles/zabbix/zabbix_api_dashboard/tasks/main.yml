@@ -1,0 +1,144 @@
+---
+- name: Se connecter à l'API Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: user.login
+      params:
+        username: "{{ zabbix_api_user }}"
+        password: "{{ zabbix_api_password }}"
+      id: 1
+  register: zabbix_dashboard_api_login
+  failed_when: zabbix_dashboard_api_login.json.error is defined
+  no_log: true
+
+- name: Récupérer les groupes de partage du dashboard
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_dashboard_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: usergroup.get
+      params:
+        output:
+          - usrgrpid
+          - name
+        filter:
+          name:
+            - "{{ item.name }}"
+      id: 2
+  loop: "{{ zabbix_dashboard_share_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: zabbix_dashboard_share_group_results
+  failed_when: zabbix_dashboard_share_group_results.json.error is defined
+  no_log: true
+
+- name: Construire les partages du dashboard
+  ansible.builtin.set_fact:
+    zabbix_dashboard_user_groups: "{{ zabbix_dashboard_user_groups | default([]) + [{'usrgrpid': item.json.result[0].usrgrpid, 'permission': item.item.permission}] }}"
+  loop: "{{ zabbix_dashboard_share_group_results.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.json.result | length > 0
+
+- name: Construire les pages du dashboard
+  ansible.builtin.set_fact:
+    zabbix_dashboard_rendered_pages: "{{ zabbix_dashboard_rendered_pages | default([]) + [zabbix_dashboard_rendered_page] }}"
+  loop: "{{ zabbix_dashboard_pages }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    zabbix_dashboard_rendered_page:
+      name: "{{ item.name }}"
+      display_period: "{{ item.display_period | default(0) }}"
+      widgets: "{{ item.widgets | map('combine', {'view_mode': 0, 'fields': []}) | list }}"
+
+- name: Récupérer le dashboard Cynto existant
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_dashboard_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: dashboard.get
+      params:
+        output:
+          - dashboardid
+          - name
+        filter:
+          name:
+            - "{{ zabbix_dashboard_name }}"
+      id: 3
+  register: zabbix_dashboard_existing
+  failed_when: zabbix_dashboard_existing.json.error is defined
+  no_log: true
+
+- name: Créer le dashboard Cynto
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_dashboard_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: dashboard.create
+      params:
+        name: "{{ zabbix_dashboard_name }}"
+        private: 0
+        display_period: "{{ zabbix_dashboard_display_period }}"
+        auto_start: "{{ zabbix_dashboard_auto_start }}"
+        pages: "{{ zabbix_dashboard_rendered_pages }}"
+        userGroups: "{{ zabbix_dashboard_user_groups | default([]) }}"
+      id: 4
+  when: zabbix_dashboard_existing.json.result | length == 0
+  register: zabbix_dashboard_create
+  changed_when: true
+  failed_when: zabbix_dashboard_create.json.error is defined
+
+- name: Mettre à jour le dashboard Cynto
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_dashboard_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: dashboard.update
+      params:
+        dashboardid: "{{ zabbix_dashboard_existing.json.result[0].dashboardid }}"
+        name: "{{ zabbix_dashboard_name }}"
+        private: 0
+        display_period: "{{ zabbix_dashboard_display_period }}"
+        auto_start: "{{ zabbix_dashboard_auto_start }}"
+        pages: "{{ zabbix_dashboard_rendered_pages }}"
+        userGroups: "{{ zabbix_dashboard_user_groups | default([]) }}"
+      id: 5
+  when: zabbix_dashboard_existing.json.result | length > 0
+  register: zabbix_dashboard_update
+  changed_when: true
+  failed_when: zabbix_dashboard_update.json.error is defined
+
+- name: Résumé dashboard Cynto
+  ansible.builtin.debug:
+    msg: "Dashboard '{{ zabbix_dashboard_name }}' créé ou mis à jour avec {{ zabbix_dashboard_rendered_pages | length }} pages."

@@ -40,3 +40,11 @@ zabbix_api_managed_hosts:
     interface_type: snmp
     port: "161"
     snmp_community: "{{ zabbix_pfsense_snmp_community }}"
+  - host_name: "{{ hostvars['sw-sg500-01'].server_hostname | default('sw-sg500-01') }}"
+    visible_name: "{{ hostvars['sw-sg500-01'].server_fqdn | default('sw-sg500-01.cynto.tech') }}"
+    ip: "{{ hostvars['sw-sg500-01'].ansible_host }}"
+    host_group: Network devices
+    template: Network Generic Device by SNMP
+    interface_type: snmp
+    port: "161"
+    snmp_community: "{{ zabbix_switch_snmp_community }}"

@@ -1,0 +1,6 @@
+---
+- name: Configurer les switches
+  hosts: switches
+  gather_facts: false
+  roles:
+    - sg500_snmp

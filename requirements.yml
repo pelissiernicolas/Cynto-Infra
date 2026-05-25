@@ -16,3 +16,7 @@ collections:
 
   # Pare-feu
   - name: pfsensible.core        # configuration pfSense
+
+  # Équipements réseau
+  - name: ansible.netcommon      # connexions network_cli
+  - name: cisco.ios              # configuration CLI Cisco/SG

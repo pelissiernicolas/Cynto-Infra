@@ -1,0 +1,239 @@
+---
+- name: Se connecter à l'API Zabbix
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: user.login
+      params:
+        username: "{{ zabbix_api_user }}"
+        password: "{{ zabbix_api_password }}"
+      id: 1
+  register: zabbix_map_api_login
+  failed_when: zabbix_map_api_login.json.error is defined
+  no_log: true
+
+- name: Préparer les éléments de la map
+  ansible.builtin.set_fact:
+    zabbix_map_all_elements: "{{ zabbix_map_elements + zabbix_map_vm_elements }}"
+
+- name: Récupérer les hôtes Zabbix de la map
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_map_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: host.get
+      params:
+        output:
+          - hostid
+          - host
+          - name
+        filter:
+          host:
+            - "{{ item.host }}"
+      id: 2
+  loop: "{{ zabbix_map_all_elements | selectattr('host', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.host }}"
+  register: zabbix_map_host_results
+  failed_when: zabbix_map_host_results.json.error is defined
+  no_log: true
+
+- name: Construire l'index des hôtes Zabbix trouvés
+  ansible.builtin.set_fact:
+    zabbix_map_host_ids: "{{ zabbix_map_host_ids | default({}) | combine({item.item.key: item.json.result[0].hostid}) }}"
+  loop: "{{ zabbix_map_host_results.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when: item.json.result | length > 0
+
+- name: Récupérer les icônes Zabbix souhaitées
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_map_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: image.get
+      params:
+        output:
+          - imageid
+          - name
+        search:
+          name: "{{ item }}"
+        sortfield: name
+      id: 3
+  loop:
+    - "{{ zabbix_map_default_icon_name }}"
+    - "{{ zabbix_map_network_icon_name }}"
+  register: zabbix_map_icon_results
+  failed_when: zabbix_map_icon_results.json.error is defined
+  no_log: true
+
+- name: Récupérer une icône de secours
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_map_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: image.get
+      params:
+        output:
+          - imageid
+          - name
+        filter:
+          imagetype: 1
+        limit: 1
+      id: 4
+  register: zabbix_map_fallback_icon
+  failed_when: zabbix_map_fallback_icon.json.error is defined
+  no_log: true
+
+- name: Préparer les identifiants d'icônes
+  ansible.builtin.set_fact:
+    zabbix_map_default_icon_id: "{{ (zabbix_map_icon_results.results[0].json.result[0].imageid if zabbix_map_icon_results.results[0].json.result | length > 0 else zabbix_map_fallback_icon.json.result[0].imageid) }}"
+    zabbix_map_network_icon_id: "{{ (zabbix_map_icon_results.results[1].json.result[0].imageid if zabbix_map_icon_results.results[1].json.result | length > 0 else zabbix_map_fallback_icon.json.result[0].imageid) }}"
+
+- name: Construire les éléments Zabbix de la map
+  ansible.builtin.set_fact:
+    zabbix_map_selements: "{{ zabbix_map_selements | default([]) + [zabbix_map_selement] }}"
+    zabbix_map_selement_ids: "{{ zabbix_map_selement_ids | default({}) | combine({item.key: (zabbix_map_element_index + 1) | string}) }}"
+  loop: "{{ zabbix_map_all_elements }}"
+  loop_control:
+    index_var: zabbix_map_element_index
+    label: "{{ item.key }}"
+  vars:
+    zabbix_map_is_host: "{{ item.host is defined and zabbix_map_host_ids is defined and item.key in zabbix_map_host_ids }}"
+    zabbix_map_selement:
+      selementid: "{{ (zabbix_map_element_index + 1) | string }}"
+      elementtype: "{{ 0 if zabbix_map_is_host | bool else 4 }}"
+      elements: "{{ [{'hostid': zabbix_map_host_ids[item.key]}] if zabbix_map_is_host | bool else [] }}"
+      iconid_off: "{{ zabbix_map_network_icon_id if item.icon | default('server') == 'network' else zabbix_map_default_icon_id }}"
+      label: "{{ item.label }}{{ '\nVM sur ' ~ item.hypervisor if item.hypervisor is defined else '' }}"
+      x: "{{ item.x }}"
+      y: "{{ item.y }}"
+
+- name: Préparer les liens VM vers hyperviseurs
+  ansible.builtin.set_fact:
+    zabbix_map_vm_links: "{{ zabbix_map_vm_links | default([]) + [{'from': item.hypervisor, 'to': item.key, 'label': 'VM'}] }}"
+  loop: "{{ zabbix_map_vm_elements }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Construire les liens Zabbix de la map
+  ansible.builtin.set_fact:
+    zabbix_map_links: "{{ zabbix_map_links | default([]) + [zabbix_map_link] }}"
+  loop: "{{ zabbix_map_static_links + zabbix_map_vm_links }}"
+  loop_control:
+    label: "{{ item.from }} -> {{ item.to }}"
+  when:
+    - item.from in zabbix_map_selement_ids
+    - item.to in zabbix_map_selement_ids
+  vars:
+    zabbix_map_link:
+      selementid1: "{{ zabbix_map_selement_ids[item.from] }}"
+      selementid2: "{{ zabbix_map_selement_ids[item.to] }}"
+      label: "{{ item.label | default('') }}"
+      drawtype: 0
+      color: 00AA00
+
+- name: Récupérer la map Cynto existante
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_map_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: map.get
+      params:
+        output:
+          - sysmapid
+          - name
+        filter:
+          name:
+            - "{{ zabbix_map_name }}"
+      id: 5
+  register: zabbix_map_existing
+  failed_when: zabbix_map_existing.json.error is defined
+
+- name: Créer la map Cynto
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_map_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: map.create
+      params:
+        name: "{{ zabbix_map_name }}"
+        width: "{{ zabbix_map_width }}"
+        height: "{{ zabbix_map_height }}"
+        private: 0
+        expandproblem: 1
+        show_unack: 0
+        selements: "{{ zabbix_map_selements }}"
+        links: "{{ zabbix_map_links | default([]) }}"
+      id: 6
+  when: zabbix_map_existing.json.result | length == 0
+  register: zabbix_map_create
+  changed_when: true
+  failed_when: zabbix_map_create.json.error is defined
+
+- name: Mettre à jour la map Cynto
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}"
+    method: POST
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ zabbix_map_api_login.json.result }}"
+    validate_certs: "{{ zabbix_api_validate_certs }}"
+    return_content: true
+    body:
+      jsonrpc: "2.0"
+      method: map.update
+      params:
+        sysmapid: "{{ zabbix_map_existing.json.result[0].sysmapid }}"
+        name: "{{ zabbix_map_name }}"
+        width: "{{ zabbix_map_width }}"
+        height: "{{ zabbix_map_height }}"
+        private: 0
+        expandproblem: 1
+        show_unack: 0
+        selements: "{{ zabbix_map_selements }}"
+        links: "{{ zabbix_map_links | default([]) }}"
+      id: 7
+  when: zabbix_map_existing.json.result | length > 0
+  register: zabbix_map_update
+  changed_when: true
+  failed_when: zabbix_map_update.json.error is defined
+
+- name: Résumé map Cynto
+  ansible.builtin.debug:
+    msg: "Map '{{ zabbix_map_name }}' créée ou mise à jour avec {{ zabbix_map_selements | length }} éléments et {{ zabbix_map_links | default([]) | length }} liens."

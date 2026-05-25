@@ -41,6 +41,8 @@ vault_glpi_admin_password: "CHANGEME"
 vault_glpi_postonly_password: "CHANGEME"
 vault_glpi_tech_password: "CHANGEME"
 vault_glpi_normal_password: "CHANGEME"
+vault_glpi_zabbix_user_token: "GENERATE_A_LONG_RANDOM_TOKEN"
+vault_glpi_app_token: ""
 
 # --- Zabbix ---
 
@@ -54,3 +56,5 @@ vault_zabbix_alert_recipient_email: "admin@example.com"
 vault_proxmox_root_password: "CHANGEME"
 vault_qdevice_ssh_password: "CHANGEME"
 vault_qdevice_become_password: "CHANGEME"
+vault_switch_ssh_password: "CHANGEME"
+vault_switch_enable_password: "CHANGEME"
