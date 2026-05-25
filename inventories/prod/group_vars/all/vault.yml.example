@@ -41,8 +41,6 @@ vault_glpi_admin_password: "CHANGEME"
 vault_glpi_postonly_password: "CHANGEME"
 vault_glpi_tech_password: "CHANGEME"
 vault_glpi_normal_password: "CHANGEME"
-vault_glpi_zabbix_user_token: "GENERATE_A_LONG_RANDOM_TOKEN"
-vault_glpi_app_token: ""
 
 # --- Zabbix ---
 

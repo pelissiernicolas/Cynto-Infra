@@ -1,5 +1,0 @@
----
-glpi_api_enabled: true
-glpi_api_external_token_enabled: true
-glpi_api_user: "{{ glpi_admin_user | default('glpi') }}"
-glpi_api_user_token: "{{ vault_glpi_zabbix_user_token | default('') }}"
