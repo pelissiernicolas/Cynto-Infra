@@ -1,5 +1,6 @@
 login,prenom,nom,service,ou,groupes,actif,changer_mdp
 nicolas.pelissier,Nicolas,Pelissier,Direction Informatique,Admins,GG_Admins_Infra;GG_Serveurs_Admin;GG_VPN_Users;GG_Nextcloud_Admins;GG_Nextcloud_50gb;GG_GLPI_Admin;GG_Zabbix_Admins,oui,non
+simon.rousselot,Simon,Rousselot,Direction Informatique,Admins,GG_Admins_Infra;GG_Serveurs_Admin;GG_VPN_Users;GG_Nextcloud_Admins;GG_Nextcloud_50gb;GG_GLPI_Admin;GG_Zabbix_Admins,oui,non
 sophie.martin,Sophie,Martin,Informatique,Admins,GG_Admins_Infra;GG_Serveurs_Admin;GG_VPN_Users;GG_GLPI_Tech;GG_Nextcloud_Users;GG_Nextcloud_50gb,oui,oui
 lucas.bernard,Lucas,Bernard,Support Helpdesk,Utilisateurs,GG_Utilisateurs_Standard;GG_GLPI_Tech;GG_Nextcloud_Users;GG_Nextcloud_10gb,oui,oui
 maxime.garcia,Maxime,Garcia,Support Helpdesk,Utilisateurs,GG_Utilisateurs_Standard;GG_GLPI_Tech;GG_Nextcloud_Users;GG_Nextcloud_10gb,oui,oui

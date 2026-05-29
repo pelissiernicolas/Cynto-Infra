@@ -25,3 +25,6 @@ dns_hosts:
   - name: "srv-glpi"
     ip: "10.8.40.13"
     create_ptr: true
+  - name: "nas1"
+    ip: "10.8.99.10"
+    create_ptr: true

@@ -62,5 +62,6 @@
 - name: Appliquer les droits et quotas Nextcloud
   hosts: nextcloud
   become: true
+  tags: nextcloud_access_policy
   roles:
     - nextcloud_access_policy

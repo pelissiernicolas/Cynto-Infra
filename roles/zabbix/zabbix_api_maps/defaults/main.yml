@@ -43,6 +43,11 @@ zabbix_map_elements:
     label: qDevice
     x: 530
     y: 380
+  - key: pbs-01
+    host: "{{ hostvars['pbs-01'].server_hostname | default('pbs-01') }}"
+    label: Proxmox Backup
+    x: 530
+    y: 520
 
 zabbix_map_vm_elements:
   - key: srv-zabbix-01
@@ -92,3 +97,6 @@ zabbix_map_static_links:
   - from: sw-sg500-01
     to: qdevice-rpi
     label: quorum
+  - from: sw-sg500-01
+    to: pbs-01
+    label: backup
