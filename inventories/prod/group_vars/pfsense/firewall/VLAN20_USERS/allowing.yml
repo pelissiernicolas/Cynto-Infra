@@ -2,6 +2,15 @@
 # Règles d'AUTORISATION du VLAN utilisateurs (VLAN20_USERS).
 fw_vlan20_users_allow:
 
+  - name: VLAN20_USERS_to_DHCP_RELAY
+    interface: VLAN20_USERS
+    action: pass
+    protocol: udp
+    source: any
+    destination: any
+    destination_port: DHCP_PORTS
+    description: DHCP utilisateurs vers relais pfSense
+
   - name: VLAN20_USERS_to_DNS_AD_TCP
     interface: VLAN20_USERS
     action: pass

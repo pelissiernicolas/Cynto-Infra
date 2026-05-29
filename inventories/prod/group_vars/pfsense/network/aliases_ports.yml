@@ -9,6 +9,11 @@ pfsense_port_aliases:
     address: 53
     description: DNS TCP UDP
 
+  - name: DHCP_PORTS
+    type: port
+    address: 67 68
+    description: DHCP client serveur
+
   - name: AD_PORTS_TCP
     type: port
     address: 53 88 135 389 445 464 636 3268 3269 49152:65535

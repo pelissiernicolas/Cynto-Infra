@@ -55,3 +55,29 @@ fw_vlan40_servers_allow:
     destination: any
     destination_port: 587
     description: Zabbix vers SNTP Free
+
+  - name: VLAN40_Zabbix_to_QNAP_SNMP
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: udp
+    source: 10.8.40.15
+    destination: 10.8.99.10
+    destination_port: 161
+    description: Zabbix vers switch SG500 SNMP
+
+  - name: VLAN40_PBS_to_NAS
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: any
+    source: 10.8.40.14
+    destination: 10.8.99.10
+    description: PBS vers NAS 
+
+  - name: VLAN40_PBS_to_NAS_NFS
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: tcp/udp
+    source: 10.8.40.14
+    destination: 10.8.99.10
+    destination_port: 2049
+    description: PBS vers NAS port 2049 NFS

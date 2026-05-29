@@ -1,0 +1,3 @@
+# group_vars/pfsense/firewall/VLAN60_WIFI/blocking.yml
+# Règles de BLOCAGE du VLAN WiFi (VLAN60_WiFi).
+fw_vlan60_wifi_block: []

@@ -1,0 +1,104 @@
+---
+- name: Configurer le relais DHCP pfSense
+  ansible.builtin.shell: |
+    php <<'PHP'
+    <?php
+    require_once("config.inc");
+    require_once("functions.inc");
+    require_once("services.inc");
+
+    global $config;
+
+    $desiredDescrs = json_decode('{{ pfsense_dhcp_relay_interfaces | to_json }}', true);
+    $desiredServers = implode(",", json_decode('{{ pfsense_dhcp_relay_servers | to_json }}', true));
+    $agentOption = {{ pfsense_dhcp_relay_agent_option | bool | ternary('true', 'false') }};
+    $disableLocalDhcpServer = {{ pfsense_dhcp_relay_disable_local_dhcp_server | bool | ternary('true', 'false') }};
+
+    $interfaceKeys = array();
+    $missingDescrs = $desiredDescrs;
+
+    foreach ($config['interfaces'] as $key => $ifcfg) {
+        if (in_array($ifcfg['descr'], $desiredDescrs, true)) {
+            $interfaceKeys[] = $key;
+            $missingDescrs = array_values(array_diff($missingDescrs, array($ifcfg['descr'])));
+        }
+    }
+
+    if (count($missingDescrs) > 0) {
+        fwrite(STDERR, "Interfaces pfSense introuvables: " . implode(", ", $missingDescrs) . PHP_EOL);
+        exit(1);
+    }
+
+    sort($interfaceKeys);
+    $desiredInterfaces = implode(",", $interfaceKeys);
+
+    if (!isset($config['dhcrelay']) || !is_array($config['dhcrelay'])) {
+        $config['dhcrelay'] = array();
+    }
+
+    $changed = false;
+
+    if ($disableLocalDhcpServer && isset($config['dhcpd']) && is_array($config['dhcpd'])) {
+        foreach ($config['dhcpd'] as $key => $dhcpif) {
+            if (is_array($dhcpif) && isset($config['dhcpd'][$key]['enable'])) {
+                unset($config['dhcpd'][$key]['enable']);
+                $changed = true;
+            }
+        }
+    }
+
+    if (($config['dhcrelay']['interface'] ?? '') !== $desiredInterfaces) {
+        $config['dhcrelay']['interface'] = $desiredInterfaces;
+        $changed = true;
+    }
+
+    if (($config['dhcrelay']['server'] ?? '') !== $desiredServers) {
+        $config['dhcrelay']['server'] = $desiredServers;
+        $changed = true;
+    }
+
+    $desiredEnable = true;
+    if (isset($config['dhcrelay']['enable']) !== $desiredEnable) {
+        $config['dhcrelay']['enable'] = true;
+        $changed = true;
+    }
+
+    if ($agentOption) {
+        if (!isset($config['dhcrelay']['agentoption'])) {
+            $config['dhcrelay']['agentoption'] = true;
+            $changed = true;
+        }
+    } elseif (isset($config['dhcrelay']['agentoption'])) {
+        unset($config['dhcrelay']['agentoption']);
+        $changed = true;
+    }
+
+    foreach ($config['interfaces'] as $key => $ifcfg) {
+        if (in_array($key, $interfaceKeys, true)) {
+            if (!isset($config['dhcrelay'][$key]) || !is_array($config['dhcrelay'][$key])) {
+                $config['dhcrelay'][$key] = array();
+                $changed = true;
+            }
+            if (!isset($config['dhcrelay'][$key]['enable'])) {
+                $config['dhcrelay'][$key]['enable'] = true;
+                $changed = true;
+            }
+        } elseif (isset($config['dhcrelay'][$key]['enable'])) {
+            unset($config['dhcrelay'][$key]['enable']);
+            $changed = true;
+        }
+    }
+
+    if ($changed) {
+        write_config("Configuration du relais DHCP via Ansible");
+        services_dhcrelay_configure();
+        echo "Relais DHCP mis à jour\n";
+    } else {
+        services_dhcrelay_configure();
+        echo "Relais DHCP déjà correct\n";
+    }
+    PHP
+  args:
+    executable: /bin/sh
+  register: pfsense_dhcp_relay_result
+  changed_when: "'Relais DHCP mis à jour' in pfsense_dhcp_relay_result.stdout"

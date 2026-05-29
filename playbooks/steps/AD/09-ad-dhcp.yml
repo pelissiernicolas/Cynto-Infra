@@ -1,0 +1,5 @@
+- name: Déploiement DHCP redondant sur les contrôleurs de domaine
+  hosts: domain_controllers
+  gather_facts: false
+  roles:
+    - ad_dhcp

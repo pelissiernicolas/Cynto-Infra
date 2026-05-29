@@ -1,0 +1,12 @@
+# playbooks/pfsense-dhcp-relay.yml
+# Configure uniquement le relais DHCP pfSense et les alias/règles associés.
+---
+- name: Configuration du relais DHCP pfSense
+  hosts: pfsense
+  gather_facts: false
+  collections:
+    - pfsensible.core
+  roles:
+    - dhcp_relay
+    - aliases
+    - firewall_rules

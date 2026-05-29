@@ -9,6 +9,11 @@ pfsense_ip_aliases:
     address: 10.8.20.0/26
     description: Réseau utilisateurs
 
+  - name: VLAN60_WIFI_NET
+    type: network
+    address: 10.8.60.0/26
+    description: Réseau WiFi
+
   - name: VLAN40_SERVERS_NET
     type: network
     address: 10.8.40.0/27

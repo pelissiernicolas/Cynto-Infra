@@ -1,0 +1,12 @@
+# inventories/prod/group_vars/pfsense/network/dhcp_relay.yml
+---
+pfsense_dhcp_relay_interfaces:
+  - VLAN20_USERS
+  - VLAN60_WiFi
+
+pfsense_dhcp_relay_servers:
+  - "10.8.40.10"
+  - "10.8.40.11"
+
+pfsense_dhcp_relay_agent_option: false
+pfsense_dhcp_relay_disable_local_dhcp_server: true

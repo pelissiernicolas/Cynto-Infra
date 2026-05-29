@@ -1,0 +1,33 @@
+# inventories/prod/group_vars/domain_controllers/dhcp.yml
+# =============================================================================
+# DHCP Windows sur les contrôleurs de domaine.
+# Les clients des VLANs routés par pfSense nécessitent aussi un relais DHCP
+# vers les DC (10.8.40.10 et 10.8.40.11) sur les interfaces VLAN concernées.
+# =============================================================================
+---
+dhcp_failover_name: "FO-DHCP-CYNTO"
+dhcp_failover_partner: "srv-ad-02.cynto.tech"
+dhcp_failover_mode: "LoadBalance"
+dhcp_failover_load_balance_percent: 50
+dhcp_failover_max_client_lead_time: "01:00:00"
+
+dhcp_dns_servers:
+  - "10.8.40.10"
+  - "10.8.40.11"
+
+dhcp_scopes:
+  - name: "VLAN20_USERS"
+    scope_id: "10.8.20.0"
+    start_range: "10.8.20.10"
+    end_range: "10.8.20.62"
+    subnet_mask: "255.255.255.192"
+    gateway: "10.8.20.1"
+    lease_duration: "8.00:00:00"
+
+  - name: "VLAN60_WIFI"
+    scope_id: "10.8.60.0"
+    start_range: "10.8.60.10"
+    end_range: "10.8.60.62"
+    subnet_mask: "255.255.255.192"
+    gateway: "10.8.60.1"
+    lease_duration: "8.00:00:00"

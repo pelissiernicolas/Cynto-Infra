@@ -24,6 +24,7 @@
   roles:
     - vlans
     - interfaces
+    - dhcp_relay
 
 - name: Création des alias pfSense
   hosts: pfsense

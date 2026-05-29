@@ -1,0 +1,30 @@
+# group_vars/pfsense/firewall/VLAN60_WIFI/allowing.yml
+# Règles d'AUTORISATION du VLAN WiFi (VLAN60_WiFi).
+fw_vlan60_wifi_allow:
+
+  - name: VLAN60_WIFI_to_DHCP_RELAY
+    interface: VLAN60_WiFi
+    action: pass
+    protocol: udp
+    source: any
+    destination: any
+    destination_port: DHCP_PORTS
+    description: DHCP WiFi vers relais pfSense
+
+  - name: VLAN60_WIFI_to_DNS_AD_TCP
+    interface: VLAN60_WiFi
+    action: pass
+    protocol: tcp
+    source: VLAN60_WIFI_NET
+    destination: AD_SERVERS
+    destination_port: DNS_PORTS
+    description: DNS TCP WiFi vers AD
+
+  - name: VLAN60_WIFI_to_DNS_AD_UDP
+    interface: VLAN60_WiFi
+    action: pass
+    protocol: udp
+    source: VLAN60_WIFI_NET
+    destination: AD_SERVERS
+    destination_port: DNS_PORTS
+    description: DNS UDP WiFi vers AD
