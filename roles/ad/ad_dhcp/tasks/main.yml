@@ -1,0 +1,219 @@
+---
+- name: Installer le rôle DHCP Server
+  ansible.windows.win_feature:
+    name: DHCP
+    include_management_tools: true
+    state: present
+  register: dhcp_feature
+
+- name: Redémarrer si l'installation DHCP le nécessite
+  ansible.windows.win_reboot:
+  when: dhcp_feature.reboot_required | default(false)
+
+- name: Réinitialiser la connexion WinRM après installation DHCP
+  ansible.builtin.meta: reset_connection
+
+- name: Configurer les groupes de sécurité locaux DHCP
+  ansible.windows.win_powershell:
+    script: |
+      Add-DhcpServerSecurityGroup
+      Write-Output "Groupes de sécurité DHCP configurés"
+  changed_when: false
+
+- name: Démarrer et activer le service DHCP
+  ansible.windows.win_service:
+    name: DHCPServer
+    start_mode: auto
+    state: started
+  register: dhcp_service
+  retries: 5
+  delay: 15
+  until: dhcp_service is succeeded
+
+- name: Autoriser le serveur DHCP dans Active Directory
+  ansible.windows.win_powershell:
+    script: |
+      $dnsName = "{{ server_hostname }}.{{ ad_domain_name }}"
+      $ipAddress = "{{ server_ip }}"
+      $existing = Get-DhcpServerInDC | Where-Object {
+          $_.DnsName -ieq $dnsName -or $_.IPAddress.IPAddressToString -eq $ipAddress
+      }
+
+      if ($existing) {
+          Write-Output "DHCP déjà autorisé"
+      } else {
+          Add-DhcpServerInDC -DnsName $dnsName -IPAddress $ipAddress
+          Write-Output "DHCP autorisé"
+      }
+  register: dhcp_authorization
+  changed_when: >
+    dhcp_authorization.output is defined and
+    dhcp_authorization.output | length > 0 and
+    'DHCP autorisé' in dhcp_authorization.output[0]
+
+- name: Configurer les scopes DHCP IPv4 sur le serveur principal
+  ansible.windows.win_powershell:
+    script: |
+      $scopeId = "{{ item.scope_id }}"
+      $name = "{{ item.name }}"
+      $startRange = "{{ item.start_range }}"
+      $endRange = "{{ item.end_range }}"
+      $subnetMask = "{{ item.subnet_mask }}"
+      $gateway = "{{ item.gateway }}"
+      $leaseDuration = New-TimeSpan -Days {{ item.lease_duration.split('.')[0] }} -Hours {{ item.lease_duration.split('.')[1].split(':')[0] }} -Minutes {{ item.lease_duration.split(':')[1] }} -Seconds {{ item.lease_duration.split(':')[2] }}
+      $dnsServers = @((ConvertFrom-Json '{{ dhcp_dns_servers | to_json }}') | ForEach-Object { [System.Net.IPAddress]::Parse($_) })
+      $dnsDomain = "{{ ad_domain_name }}"
+
+      $changed = $false
+      $scope = Get-DhcpServerv4Scope -ScopeId $scopeId -ErrorAction SilentlyContinue
+
+      if (-not $scope) {
+          Add-DhcpServerv4Scope `
+              -Name $name `
+              -StartRange $startRange `
+              -EndRange $endRange `
+              -SubnetMask $subnetMask `
+              -LeaseDuration $leaseDuration `
+              -State Active
+          $changed = $true
+          Write-Output "Scope créé"
+      } else {
+          if ($scope.Name -ne $name -or $scope.State -ne "Active" -or $scope.LeaseDuration -ne $leaseDuration) {
+              Set-DhcpServerv4Scope -ScopeId $scopeId -Name $name -State Active -LeaseDuration $leaseDuration
+              $changed = $true
+              Write-Output "Scope mis à jour"
+          }
+
+          if ($scope.StartRange.IPAddressToString -ne $startRange -or
+              $scope.EndRange.IPAddressToString -ne $endRange -or
+              $scope.SubnetMask.IPAddressToString -ne $subnetMask) {
+              throw "Le scope $scopeId existe avec une plage ou un masque différent. Ajustement manuel requis avant relance."
+          }
+      }
+
+      $optionChanged = $false
+      $router = Get-DhcpServerv4OptionValue -ScopeId $scopeId -OptionId 3 -ErrorAction SilentlyContinue
+      if (-not $router -or ($router.Value -join ",") -ne $gateway) {
+          Set-DhcpServerv4OptionValue -ScopeId $scopeId -Router $gateway
+          $optionChanged = $true
+      }
+
+      $dns = Get-DhcpServerv4OptionValue -ScopeId $scopeId -OptionId 6 -ErrorAction SilentlyContinue
+      $currentDnsServers = @()
+      if ($dns) {
+          $currentDnsServers = @($dns.Value | ForEach-Object { $_.IPAddressToString })
+      }
+      $desiredDnsServers = @($dnsServers | ForEach-Object { $_.IPAddressToString })
+      if (-not $dns -or ($currentDnsServers -join ",") -ne ($desiredDnsServers -join ",")) {
+          Set-DhcpServerv4OptionValue -ScopeId $scopeId -DnsServer $dnsServers
+          $optionChanged = $true
+      }
+
+      $domain = Get-DhcpServerv4OptionValue -ScopeId $scopeId -OptionId 15 -ErrorAction SilentlyContinue
+      if (-not $domain -or ($domain.Value -join "") -ne $dnsDomain) {
+          Set-DhcpServerv4OptionValue -ScopeId $scopeId -DnsDomain $dnsDomain
+          $optionChanged = $true
+      }
+
+      if ($optionChanged) {
+          Write-Output "Options mises à jour"
+      } elseif (-not $changed) {
+          Write-Output "Scope déjà correct"
+      }
+  loop: "{{ dhcp_scopes }}"
+  register: dhcp_scope_result
+  changed_when: >
+    dhcp_scope_result.output is defined and
+    dhcp_scope_result.output | length > 0 and
+    (
+      'Scope créé' in dhcp_scope_result.output or
+      'Scope mis à jour' in dhcp_scope_result.output or
+      'Options mises à jour' in dhcp_scope_result.output
+    )
+  when: inventory_hostname in groups['primary_dc']
+
+- name: Configurer les options DNS DHCP au niveau serveur
+  ansible.windows.win_powershell:
+    script: |
+      $dnsServers = @((ConvertFrom-Json '{{ dhcp_dns_servers | to_json }}') | ForEach-Object { [System.Net.IPAddress]::Parse($_) })
+      $dnsDomain = "{{ ad_domain_name }}"
+      $changed = $false
+
+      $dns = Get-DhcpServerv4OptionValue -OptionId 6 -ErrorAction SilentlyContinue
+      $currentDnsServers = @()
+      if ($dns) {
+          $currentDnsServers = @($dns.Value | ForEach-Object { $_.IPAddressToString })
+      }
+      $desiredDnsServers = @($dnsServers | ForEach-Object { $_.IPAddressToString })
+
+      if (-not $dns -or ($currentDnsServers -join ",") -ne ($desiredDnsServers -join ",")) {
+          Set-DhcpServerv4OptionValue -DnsServer $dnsServers
+          $changed = $true
+      }
+
+      $domain = Get-DhcpServerv4OptionValue -OptionId 15 -ErrorAction SilentlyContinue
+      if (-not $domain -or ($domain.Value -join "") -ne $dnsDomain) {
+          Set-DhcpServerv4OptionValue -DnsDomain $dnsDomain
+          $changed = $true
+      }
+
+      if ($changed) {
+          Write-Output "Options DNS serveur mises à jour"
+      } else {
+          Write-Output "Options DNS serveur déjà correctes"
+      }
+  register: dhcp_server_dns_options
+  changed_when: >
+    dhcp_server_dns_options.output is defined and
+    dhcp_server_dns_options.output | length > 0 and
+    'Options DNS serveur mises à jour' in dhcp_server_dns_options.output[0]
+  when: inventory_hostname in groups['primary_dc']
+
+- name: Configurer la redondance DHCP entre les deux contrôleurs de domaine
+  ansible.windows.win_powershell:
+    script: |
+      $failoverName = "{{ dhcp_failover_name }}"
+      $partnerServer = "{{ dhcp_failover_partner }}"
+      $scopeIds = ConvertFrom-Json '{{ dhcp_scopes | map(attribute="scope_id") | list | to_json }}'
+      $mode = "{{ dhcp_failover_mode }}"
+      $loadBalancePercent = {{ dhcp_failover_load_balance_percent }}
+      $maxClientLeadTime = "{{ dhcp_failover_max_client_lead_time }}"
+
+      $existing = Get-DhcpServerv4Failover -Name $failoverName -ErrorAction SilentlyContinue
+      if (-not $existing) {
+          Add-DhcpServerv4Failover `
+              -Name $failoverName `
+              -PartnerServer $partnerServer `
+              -ScopeId $scopeIds `
+              -Mode $mode `
+              -LoadBalancePercent $loadBalancePercent `
+              -MaxClientLeadTime $maxClientLeadTime `
+              -AutoStateTransition $true `
+              -StateSwitchInterval "01:00:00" `
+              -Force
+          Write-Output "Failover créé"
+      } else {
+          $missingScopes = @($scopeIds | Where-Object { $existing.ScopeId -notcontains $_ })
+          if ($missingScopes.Count -gt 0) {
+              Add-DhcpServerv4FailoverScope -Name $failoverName -ScopeId $missingScopes
+              Write-Output "Scopes ajoutés au failover"
+          } else {
+              Write-Output "Failover déjà correct"
+          }
+      }
+  register: dhcp_failover_result
+  changed_when: >
+    dhcp_failover_result.output is defined and
+    dhcp_failover_result.output | length > 0 and
+    (
+      'Failover créé' in dhcp_failover_result.output[0] or
+      'Scopes ajoutés au failover' in dhcp_failover_result.output[0]
+    )
+  when: inventory_hostname in groups['primary_dc']
+
+- name: Marquer la post-configuration DHCP comme terminée dans Server Manager
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\ServerManager\Roles\12
+    name: ConfigurationState
+    data: 2
+    type: dword
