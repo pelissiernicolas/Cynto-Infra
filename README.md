@@ -86,7 +86,8 @@ Cynto-Infra/
 │       │   ├── pfsense/        # base/ dns/ firewall/ ldap/ network/ vpn/
 │       │   ├── nextcloud/      # application/ database/ ldap/ php/ server/ ssl/ appapi/
 │       │   ├── glpi/           # application/ database/ ldap/ server/ ssl/ web/
-│       │   └── zabbix/         # server/ api/ agents/ snmp/
+│       │   ├── zabbix/         # server/ api/ agents/ snmp/
+│       │   └── wsus_servers/   # WSUS : disque, produits, classifications, sync
 │       └── host_vars/          # srv-ad-01, srv-ad-02, srv-wsus-01, srv-zabbix
 ├── playbooks/
 │   ├── ad.yml                  # Service Active Directory
@@ -94,6 +95,7 @@ Cynto-Infra/
 │   ├── pfsense.yml             # Service pfSense
 │   ├── nextcloud.yml           # Service Nextcloud
 │   ├── glpi.yml                # Service GLPI
+│   ├── wsus.yml                # Service WSUS
 │   ├── zabbix.yml              # Service Zabbix (serveur + agents Linux/Windows + API)
 │   └── switches.yml            # Configuration SNMP des switches Cisco SG500
 ├── playbooks/artifacts/ad-ca/  # CA exportée à l'exécution (ignorée par Git)
@@ -110,6 +112,7 @@ Cynto-Infra/
     │   ├── ad_dns/             # Zones DNS, enregistrements A/PTR
     │   ├── ad_ou/              # Structure d'OUs
     │   ├── ad_groups/          # Groupes de sécurité
+    │   ├── member_server/      # Jonction des serveurs membres au domaine
     │   ├── win_base/           # Base Windows : WinRM, timezone, DNS
     │   └── win_network/        # Configuration réseau Windows
     ├── pfsense/
@@ -154,6 +157,8 @@ Cynto-Infra/
     │   ├── zabbix_api_dashboard/   # Création des dashboards via API
     │   ├── zabbix_api_maps/    # Création des cartes réseau via API
     │   └── zabbix_snmp_test/   # Test SNMP de connectivité (switches)
+    ├── wsus/
+    │   └── wsus/               # Disque de contenu, rôle WSUS, post-install, sync
     └── switches/
         └── sg500_snmp/         # Configuration SNMP des commutateurs Cisco SG500
 ```
@@ -161,7 +166,7 @@ Cynto-Infra/
 > **`roles_path` multi-dossiers.** Les rôles étant rangés par sous-dossier de service,
 > `ansible.cfg` déclare explicitement chaque chemin :
 > ```ini
-> roles_path = roles/ad:roles/pfsense:roles/nextcloud:roles/glpi:roles/shared
+> roles_path = roles/ad:roles/pfsense:roles/nextcloud:roles/glpi:roles/zabbix:roles/wsus:roles/switches:roles/shared
 > ```
 
 ---
@@ -233,6 +238,7 @@ ansible-vault edit inventories/prod/group_vars/all/vault.yml
 |---|---|
 | `vault_windows_admin_password` | Mot de passe `Administrateur` Windows |
 | `vault_ad_safe_mode_password` | Mot de passe DSRM Active Directory |
+| `vault_domain_admin_password` | Mot de passe admin domaine pour joindre les serveurs membres |
 | `vault_nextcloud_admin_user` | Compte admin Nextcloud |
 | `vault_nextcloud_admin_password` | Mot de passe admin Nextcloud |
 | `vault_nextcloud_db_password` | Mot de passe MariaDB Nextcloud |
@@ -273,12 +279,31 @@ ansible-playbook playbooks/nextcloud.yml --ask-vault-pass --ask-pass --ask-becom
 # 5. GLPI
 ansible-playbook playbooks/glpi.yml --ask-vault-pass --ask-pass --ask-become-pass
 
-# 6. Switches Cisco SG500 (SNMP)
+# 6. WSUS
+ansible-playbook playbooks/wsus.yml --ask-vault-pass
+
+# 7. Switches Cisco SG500 (SNMP)
 ansible-playbook playbooks/switches.yml --ask-vault-pass
 
-# 7. Zabbix (serveur en premier, puis agents et configuration API)
+# 8. Zabbix (serveur en premier, puis agents et configuration API)
 ansible-playbook playbooks/zabbix.yml --ask-vault-pass --ask-pass --ask-become-pass
 ```
+
+### WSUS
+
+Le playbook `playbooks/wsus.yml` prépare `srv-wsus-01` avant l'installation du rôle :
+renommage, timezone, configuration IP/DNS, jonction au domaine, préparation du disque 1 en
+`D:` puis installation WSUS avec WID. Les paramètres principaux sont dans
+`inventories/prod/group_vars/wsus_servers/wsus.yml` :
+
+| Variable | Valeur par défaut | Usage |
+|---|---|---|
+| `wsus_data_disk_number` | `1` | Deuxième disque Windows à initialiser |
+| `wsus_data_drive_letter` | `D` | Lettre du volume WSUS |
+| `wsus_content_dir` | `D:\WSUS` | Dossier de contenu WSUS |
+| `wsus_products` | Windows Server 2025, Windows 11 | Produits synchronisés |
+| `wsus_classifications` | Critical/Security Updates | Classifications synchronisées |
+| `wsus_start_initial_content_sync` | `false` | Lance ou non une synchro complète après config |
 
 ### Exécution ciblée (tags / limit)
 

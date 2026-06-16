@@ -1,0 +1,4 @@
+# inventories/prod/group_vars/windows/base.yml
+# Paramètres Windows communs.
+---
+windows_timezone: "Romance Standard Time"

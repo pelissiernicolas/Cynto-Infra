@@ -27,5 +27,8 @@
 # 5. Gestion de parc / ITSM : GLPI
 - import_playbook: playbooks/glpi.yml
 
-# 6. Supervision : Zabbix
+# 6. Gestion des mises à jour Windows : WSUS
+- import_playbook: playbooks/wsus.yml
+
+# 7. Supervision : Zabbix
 - import_playbook: playbooks/zabbix.yml

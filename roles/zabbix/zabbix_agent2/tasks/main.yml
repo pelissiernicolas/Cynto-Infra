@@ -1,4 +1,21 @@
 ---
+- name: Rechercher les sources APT Zabbix existantes
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    patterns: "*zabbix*"
+    file_type: file
+  register: zabbix_agent_apt_sources
+
+- name: Corriger les anciennes sources Zabbix stable vers release
+  ansible.builtin.replace:
+    path: "{{ item.path }}"
+    regexp: "zabbix/{{ zabbix_agent_version }}/stable"
+    replace: "zabbix/{{ zabbix_agent_version }}/release"
+  loop: "{{ zabbix_agent_apt_sources.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  notify: Mettre à jour le cache APT
+
 - name: Installer les prérequis Zabbix Agent 2
   ansible.builtin.apt:
     name:

@@ -80,6 +80,12 @@ zabbix_map_vm_elements:
     hypervisor: pve-02
     x: 880
     y: 520
+  - key: srv-wsus-01
+    host: "{{ hostvars['srv-wsus-01'].server_hostname | default('srv-wsus-01') }}"
+    label: WSUS
+    hypervisor: pve-02
+    x: 1050
+    y: 520
 
 zabbix_map_static_links:
   - from: internet

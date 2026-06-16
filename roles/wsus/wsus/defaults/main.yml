@@ -1,0 +1,38 @@
+---
+wsus_data_disk_number: 1
+wsus_data_drive_letter: "D"
+wsus_data_partition_style: "GPT"
+wsus_data_file_system: "NTFS"
+wsus_data_allocation_unit_size: 65536
+wsus_data_volume_label: "WSUS"
+wsus_reassign_conflicting_optical_drive: true
+wsus_content_dir: "{{ wsus_data_drive_letter }}:\\WSUS"
+
+wsus_features:
+  - UpdateServices
+  - UpdateServices-Services
+  - UpdateServices-WidDB
+
+wsus_firewall_ports:
+  - 8530
+  - 8531
+
+wsus_sync_from_microsoft_update: true
+wsus_sync_automatically: true
+wsus_sync_time_of_day: "03:00:00"
+wsus_syncs_per_day: 1
+wsus_sync_categories_before_selection: true
+wsus_sync_categories_timeout_seconds: 3600
+wsus_start_initial_content_sync: false
+
+wsus_languages:
+  - "fr"
+  - "en"
+
+wsus_products:
+  - "Windows Server 2025"
+  - "Windows 11"
+
+wsus_classifications:
+  - "Critical Updates"
+  - "Security Updates"

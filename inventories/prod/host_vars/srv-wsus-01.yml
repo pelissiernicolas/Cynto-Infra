@@ -1,3 +1,6 @@
 server_hostname: "srv-wsus-01"
 server_ip: "10.8.40.16"
 server_role: "wsus"
+network_dns_servers:
+  - "10.8.40.10"
+  - "10.8.40.11"

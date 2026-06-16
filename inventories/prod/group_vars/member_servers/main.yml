@@ -1,4 +1,7 @@
 # inventories/prod/group_vars/member_servers/main.yml
-# (Aucune variable spécifique pour l'instant — serveurs membres du domaine.)
 ---
-base_server_upgrade : safe
+base_server_upgrade: safe
+
+member_server_domain_admin_user: "{{ domain_admin_user }}@{{ ad_domain_name }}"
+member_server_domain_admin_password: "{{ vault_domain_admin_password }}"
+member_server_domain_ou_path: "OU=Serveurs,DC=cynto,DC=tech"

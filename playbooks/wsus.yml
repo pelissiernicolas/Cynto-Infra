@@ -1,0 +1,17 @@
+# playbooks/wsus.yml
+# SERVICE : WSUS (Windows Server Update Services).
+# Cible : groupe wsus_servers.
+---
+- name: Préparer le serveur WSUS
+  hosts: wsus_servers
+  gather_facts: false
+  roles:
+    - role: win_base
+    - role: win_network
+    - role: member_server
+
+- name: Installer et configurer WSUS
+  hosts: wsus_servers
+  gather_facts: false
+  roles:
+    - role: wsus

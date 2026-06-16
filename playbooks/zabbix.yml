@@ -16,8 +16,10 @@
     - zabbix_agent2
 
 - name: Déployer Zabbix Agent 2 sur les contrôleurs de domaine
-  hosts: domain_controllers
+  hosts: windows
   gather_facts: false
+  tags:
+    - zabbix_agent2_windows
   roles:
     - zabbix_agent2_windows
 

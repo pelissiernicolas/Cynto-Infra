@@ -1,0 +1,408 @@
+---
+- name: Vérifier les variables obligatoires WSUS
+  ansible.builtin.assert:
+    that:
+      - server_hostname is defined
+      - server_ip is defined
+      - network_adapter_name is defined
+      - network_prefix_length is defined
+      - network_gateway is defined
+      - network_dns_servers is defined
+      - wsus_content_dir is defined
+      - wsus_data_disk_number is defined
+      - wsus_data_drive_letter is defined
+    fail_msg: "Variables WSUS/réseau incomplètes pour {{ inventory_hostname }}."
+
+- name: Vérifier la configuration IP cible
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      $errors = @()
+      $alias = "{{ network_adapter_name }}"
+      $wantedIp = "{{ server_ip }}"
+      $wantedPrefix = [int]"{{ network_prefix_length }}"
+      $wantedGateway = "{{ network_gateway }}"
+      $wantedDns = @({{ network_dns_servers | map('to_json') | join(', ') }})
+
+      $ip = Get-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            Where-Object { $_.IPAddress -eq $wantedIp }
+      if (-not $ip) {
+          $errors += "IP absente: $wantedIp sur $alias"
+      }
+      elseif ($ip.PrefixLength -ne $wantedPrefix) {
+          $errors += "PrefixLength incorrect: $($ip.PrefixLength), attendu $wantedPrefix"
+      }
+
+      $route = Get-NetRoute -InterfaceAlias $alias -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue |
+               Where-Object { $_.NextHop -eq $wantedGateway }
+      if (-not $route) {
+          $errors += "Passerelle absente: $wantedGateway"
+      }
+
+      $currentDns = (Get-DnsClientServerAddress -InterfaceAlias $alias -AddressFamily IPv4).ServerAddresses
+      foreach ($dns in $wantedDns) {
+          if ($currentDns -notcontains $dns) {
+              $errors += "DNS absent: $dns"
+          }
+      }
+
+      if ($errors.Count -gt 0) {
+          throw ($errors -join "`n")
+      }
+      Write-Output "Configuration IP OK"
+  changed_when: false
+
+- name: Préparer le disque de données WSUS
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      $diskNumber = [int]"{{ wsus_data_disk_number }}"
+      $driveLetter = "{{ wsus_data_drive_letter }}"
+      $partitionStyle = "{{ wsus_data_partition_style }}"
+      $fileSystem = "{{ wsus_data_file_system }}"
+      $label = "{{ wsus_data_volume_label }}"
+      $allocationUnitSize = [int]"{{ wsus_data_allocation_unit_size }}"
+      $reassignOpticalDrive = [bool]::Parse("{{ wsus_reassign_conflicting_optical_drive | bool | string }}")
+      $changed = $false
+
+      function Get-FreeDriveLetter {
+          $usedLetters = @(
+              Get-Volume -ErrorAction SilentlyContinue |
+              Where-Object { $_.DriveLetter } |
+              ForEach-Object { $_.DriveLetter.ToString() }
+          )
+          return 69..90 |
+                 ForEach-Object { ([char]$_).ToString() } |
+                 Where-Object { $usedLetters -notcontains $_ } |
+                 Select-Object -First 1
+      }
+
+      function Move-ConflictingOpticalDrive {
+          param(
+              [string]$Letter,
+              [int]$TargetDiskNumber
+          )
+
+          $partition = Get-Partition -DriveLetter $Letter -ErrorAction SilentlyContinue
+          if ($partition -and $partition.DiskNumber -eq $TargetDiskNumber) {
+              return $false
+          }
+
+          $volume = Get-Volume -DriveLetter $Letter -ErrorAction SilentlyContinue
+          $logicalDisk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$Letter`:'" -ErrorAction SilentlyContinue
+          $win32Volume = Get-CimInstance Win32_Volume -Filter "DriveLetter='$Letter`:'" -ErrorAction SilentlyContinue
+
+          if (-not $partition -and -not $volume -and -not $logicalDisk -and -not $win32Volume) {
+              return $false
+          }
+
+          $isOptical = ($volume -and $volume.DriveType -eq "CD-ROM") -or
+                       ($logicalDisk -and $logicalDisk.DriveType -eq 5) -or
+                       ($win32Volume -and $win32Volume.DriveType -eq 5)
+
+          if (-not $isOptical) {
+              $driveType = if ($volume) { $volume.DriveType } elseif ($logicalDisk) { $logicalDisk.DriveType } elseif ($win32Volume) { $win32Volume.DriveType } else { "inconnu" }
+              throw "La lettre $Letter`: est déjà utilisée par un volume non optique (type: $driveType). Modifiez wsus_data_drive_letter ou libérez cette lettre."
+          }
+
+          if (-not $reassignOpticalDrive) {
+              throw "La lettre $Letter`: est utilisée par un lecteur optique. Activez wsus_reassign_conflicting_optical_drive ou choisissez une autre lettre."
+          }
+
+          $newLetter = Get-FreeDriveLetter
+          if (-not $newLetter) {
+              throw "Impossible de libérer $Letter`: aucun lecteur disponible entre E: et Z:."
+          }
+
+          if ($partition) {
+              Set-Partition -DriveLetter $Letter -NewDriveLetter $newLetter
+          }
+          elseif ($win32Volume) {
+              $win32Volume | Set-CimInstance -Property @{ DriveLetter = "$newLetter`:" }
+          }
+          else {
+              throw "La lettre $Letter`: est utilisée par un lecteur optique, mais Windows ne permet pas de la déplacer automatiquement. Libérez cette lettre ou changez wsus_data_drive_letter."
+          }
+
+          return $true
+      }
+
+      $disk = Get-Disk -Number $diskNumber -ErrorAction Stop
+
+      if ($disk.IsOffline) {
+          Set-Disk -Number $diskNumber -IsOffline $false
+          $changed = $true
+      }
+      if ($disk.IsReadOnly) {
+          Set-Disk -Number $diskNumber -IsReadOnly $false
+          $changed = $true
+      }
+
+      $disk = Get-Disk -Number $diskNumber -ErrorAction Stop
+      if ($disk.PartitionStyle -eq "RAW") {
+          Initialize-Disk -Number $diskNumber -PartitionStyle $partitionStyle
+          $changed = $true
+      }
+
+      if (Move-ConflictingOpticalDrive -Letter $driveLetter -TargetDiskNumber $diskNumber) {
+          $changed = $true
+      }
+
+      $partition = Get-Partition -DriveLetter $driveLetter -ErrorAction SilentlyContinue
+      if ($partition -and $partition.DiskNumber -ne $diskNumber) {
+          $volume = Get-Volume -DriveLetter $driveLetter -ErrorAction SilentlyContinue
+          if ($reassignOpticalDrive -and $volume -and $volume.DriveType -eq "CD-ROM") {
+              $newLetter = Get-FreeDriveLetter
+              if (-not $newLetter) {
+                  throw "Impossible de libérer $driveLetter`: aucun lecteur disponible entre E: et Z:."
+              }
+
+              Set-Partition -DriveLetter $driveLetter -NewDriveLetter $newLetter
+              $changed = $true
+              $partition = $null
+          }
+          else {
+              $driveType = if ($volume) { $volume.DriveType } else { "inconnu" }
+              throw "La lettre $driveLetter`: est déjà utilisée par un volume du disque $($partition.DiskNumber) (type: $driveType). Modifiez wsus_data_drive_letter ou libérez cette lettre."
+          }
+      }
+
+      if (-not $partition) {
+          $partition = Get-Partition -DiskNumber $diskNumber -ErrorAction SilentlyContinue |
+                       Where-Object { $_.Type -ne "Reserved" } |
+                       Select-Object -First 1
+
+          if (-not $partition) {
+              if (Move-ConflictingOpticalDrive -Letter $driveLetter -TargetDiskNumber $diskNumber) {
+                  $changed = $true
+              }
+              $partition = New-Partition -DiskNumber $diskNumber -UseMaximumSize -DriveLetter $driveLetter
+              $changed = $true
+          }
+          elseif (-not $partition.DriveLetter) {
+              $partition | Set-Partition -NewDriveLetter $driveLetter
+              $partition = Get-Partition -DriveLetter $driveLetter -ErrorAction Stop
+              $changed = $true
+          }
+          elseif ($partition.DriveLetter -ne $driveLetter) {
+              Set-Partition -DriveLetter $partition.DriveLetter -NewDriveLetter $driveLetter
+              $partition = Get-Partition -DriveLetter $driveLetter -ErrorAction Stop
+              $changed = $true
+          }
+      }
+
+      $volume = Get-Volume -DriveLetter $driveLetter -ErrorAction SilentlyContinue
+      if (-not $volume -or -not $volume.FileSystem) {
+          Format-Volume -Partition $partition -FileSystem $fileSystem -NewFileSystemLabel $label `
+              -AllocationUnitSize $allocationUnitSize -Confirm:$false -Force | Out-Null
+          $changed = $true
+      }
+      elseif ($volume.FileSystemLabel -ne $label) {
+          Set-Volume -DriveLetter $driveLetter -NewFileSystemLabel $label
+          $changed = $true
+      }
+
+      if ($changed) { Write-Output "WSUS disk updated" } else { Write-Output "WSUS disk already ready" }
+  register: wsus_disk_result
+  changed_when: "'WSUS disk updated' in (wsus_disk_result.output | default([]))"
+
+- name: Créer le dossier de contenu WSUS
+  ansible.windows.win_file:
+    path: "{{ wsus_content_dir }}"
+    state: directory
+
+- name: Installer le rôle WSUS
+  ansible.windows.win_feature:
+    name: "{{ wsus_features }}"
+    include_management_tools: true
+    state: present
+  register: wsus_feature_result
+
+- name: Redémarrer après installation du rôle WSUS si nécessaire
+  ansible.windows.win_reboot:
+  when: wsus_feature_result.reboot_required | default(false)
+
+- name: Exécuter le post-install WSUS
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      $contentDir = "{{ wsus_content_dir }}"
+      $setupKey = "HKLM:\SOFTWARE\Microsoft\Update Services\Server\Setup"
+      $currentContentDir = $null
+      if (Test-Path $setupKey) {
+          $currentContentDir = (Get-ItemProperty -Path $setupKey -Name ContentDir -ErrorAction SilentlyContinue).ContentDir
+      }
+
+      if ($currentContentDir -and ($currentContentDir.TrimEnd('\') -ieq $contentDir.TrimEnd('\')) -and (Test-Path (Join-Path $contentDir "WsusContent"))) {
+          Write-Output "WSUS postinstall already completed"
+          return
+      }
+
+      $wsusUtil = Join-Path $env:ProgramFiles "Update Services\Tools\wsusutil.exe"
+      if (-not (Test-Path $wsusUtil)) {
+          throw "wsusutil.exe introuvable: $wsusUtil"
+      }
+
+      & $wsusUtil postinstall CONTENT_DIR=$contentDir
+      if ($LASTEXITCODE -ne 0) {
+          throw "wsusutil postinstall a échoué avec le code $LASTEXITCODE"
+      }
+      Write-Output "WSUS postinstall completed"
+  register: wsus_postinstall_result
+  changed_when: "'WSUS postinstall completed' in (wsus_postinstall_result.output | default([]))"
+
+- name: Démarrer les services WSUS/IIS
+  ansible.windows.win_service:
+    name: "{{ item }}"
+    start_mode: auto
+    state: started
+  loop:
+    - W3SVC
+    - WsusService
+
+- name: Autoriser les ports WSUS dans le pare-feu Windows
+  community.windows.win_firewall_rule:
+    name: "WSUS TCP {{ item }}"
+    localport: "{{ item }}"
+    action: allow
+    direction: in
+    protocol: tcp
+    state: present
+    enabled: true
+  loop: "{{ wsus_firewall_ports }}"
+
+- name: Configurer WSUS
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      [void][reflection.assembly]::LoadWithPartialName("Microsoft.UpdateServices.Administration")
+
+      $server = [Microsoft.UpdateServices.Administration.AdminProxy]::GetUpdateServer()
+      $config = $server.GetConfiguration()
+      $subscription = $server.GetSubscription()
+      $changed = $false
+      $messages = New-Object System.Collections.Generic.List[string]
+
+      $wantedLanguages = @({{ wsus_languages | map('to_json') | join(', ') }})
+      $wantedProducts = @({{ wsus_products | map('to_json') | join(', ') }})
+      $wantedClassifications = @({{ wsus_classifications | map('to_json') | join(', ') }})
+
+      if ($config.SyncFromMicrosoftUpdate -ne [bool]::Parse("{{ wsus_sync_from_microsoft_update | bool | string }}")) {
+          $config.SyncFromMicrosoftUpdate = [bool]::Parse("{{ wsus_sync_from_microsoft_update | bool | string }}")
+          $changed = $true
+      }
+
+      $currentLanguages = @($config.GetEnabledUpdateLanguages())
+      $missingLanguages = @($wantedLanguages | Where-Object { $currentLanguages -notcontains $_ })
+      $extraLanguages = @($currentLanguages | Where-Object { $wantedLanguages -notcontains $_ })
+      if ($config.AllUpdateLanguagesEnabled -or $missingLanguages.Count -gt 0 -or $extraLanguages.Count -gt 0) {
+          $config.AllUpdateLanguagesEnabled = $false
+          $config.SetEnabledUpdateLanguages($wantedLanguages)
+          $changed = $true
+      }
+
+      if ($changed) {
+          $config.Save()
+      }
+
+      if ([bool]::Parse("{{ wsus_sync_categories_before_selection | bool | string }}")) {
+          $status = $subscription.GetSynchronizationStatus()
+          $productsAvailable = @($server.GetUpdateCategories() | Where-Object { $_.Type -eq "Product" }).Count
+          if ($productsAvailable -eq 0 -and $status -ne "Running") {
+              $subscription.StartSynchronizationForCategoryOnly()
+              $messages.Add("Category synchronization started")
+              $changed = $true
+          }
+
+          $deadline = (Get-Date).AddSeconds([int]"{{ wsus_sync_categories_timeout_seconds }}")
+          do {
+              Start-Sleep -Seconds 10
+              $status = $subscription.GetSynchronizationStatus()
+          } while ($status -eq "Running" -and (Get-Date) -lt $deadline)
+
+          if ($status -eq "Running") {
+              throw "Timeout pendant la synchronisation initiale des catégories WSUS."
+          }
+      }
+
+      function Get-SortedIds($items) {
+          return @($items | ForEach-Object { $_.Id.ToString() } | Sort-Object)
+      }
+
+      function Test-SameSelection($currentItems, $wantedItems) {
+          $currentIds = @(Get-SortedIds $currentItems)
+          $wantedIds = @(Get-SortedIds $wantedItems)
+          if ($currentIds.Count -ne $wantedIds.Count) {
+              return $false
+          }
+          return -not (Compare-Object -ReferenceObject $currentIds -DifferenceObject $wantedIds)
+      }
+
+      $allClassifications = @($server.GetUpdateClassifications())
+      $selectedClassifications = @($allClassifications | Where-Object { $wantedClassifications -contains $_.Title })
+      $currentClassifications = @($subscription.GetUpdateClassifications())
+      if (-not (Test-SameSelection $currentClassifications $selectedClassifications)) {
+          $classificationCollection = New-Object Microsoft.UpdateServices.Administration.UpdateClassificationCollection
+          foreach ($classification in $selectedClassifications) {
+              [void]$classificationCollection.Add($classification)
+          }
+          $subscription.SetUpdateClassifications($classificationCollection)
+          $changed = $true
+      }
+
+      $allProducts = @($server.GetUpdateCategories() | Where-Object { $_.Type -eq "Product" })
+      $selectedProducts = @($allProducts | Where-Object { $wantedProducts -contains $_.Title })
+      $currentProducts = @($subscription.GetUpdateCategories())
+      if (-not (Test-SameSelection $currentProducts $selectedProducts)) {
+          $productCollection = New-Object Microsoft.UpdateServices.Administration.UpdateCategoryCollection
+          foreach ($product in $selectedProducts) {
+              [void]$productCollection.Add($product)
+          }
+          $subscription.SetUpdateCategories($productCollection)
+          $changed = $true
+      }
+
+      $missingProducts = @($wantedProducts | Where-Object { $allProducts.Title -notcontains $_ })
+      $missingClassifications = @($wantedClassifications | Where-Object { $allClassifications.Title -notcontains $_ })
+      if ($missingProducts.Count -gt 0) {
+          $messages.Add("Produits introuvables: $($missingProducts -join ', ')")
+      }
+      if ($missingClassifications.Count -gt 0) {
+          $messages.Add("Classifications introuvables: $($missingClassifications -join ', ')")
+      }
+
+      $wantedAutomatic = [bool]::Parse("{{ wsus_sync_automatically | bool | string }}")
+      if ($subscription.SynchronizeAutomatically -ne $wantedAutomatic) {
+          $subscription.SynchronizeAutomatically = $wantedAutomatic
+          $changed = $true
+      }
+      if ($subscription.NumberOfSynchronizationsPerDay -ne [int]"{{ wsus_syncs_per_day }}") {
+          $subscription.NumberOfSynchronizationsPerDay = [int]"{{ wsus_syncs_per_day }}"
+          $changed = $true
+      }
+      $wantedTime = [TimeSpan]::Parse("{{ wsus_sync_time_of_day }}")
+      if ($subscription.SynchronizeAutomaticallyTimeOfDay -ne $wantedTime) {
+          $subscription.SynchronizeAutomaticallyTimeOfDay = $wantedTime
+          $changed = $true
+      }
+      if ($changed) {
+          $subscription.Save()
+      }
+
+      if ([bool]::Parse("{{ wsus_start_initial_content_sync | bool | string }}") -and $subscription.GetSynchronizationStatus() -ne "Running") {
+          $subscription.StartSynchronization()
+          $messages.Add("Content synchronization started")
+          $changed = $true
+      }
+
+      if ($changed) {
+          Write-Output "WSUS configuration updated"
+      }
+      else {
+          Write-Output "WSUS configuration already compliant"
+      }
+      foreach ($message in $messages) {
+          Write-Output $message
+      }
+  register: wsus_config_result
+  changed_when: "'WSUS configuration updated' in (wsus_config_result.output | default([]))"

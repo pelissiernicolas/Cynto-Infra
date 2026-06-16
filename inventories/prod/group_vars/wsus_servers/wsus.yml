@@ -1,3 +1,7 @@
+---
+wsus_data_disk_number: 1
+wsus_data_drive_letter: "D"
+wsus_data_volume_label: "WSUS"
 wsus_content_dir: "D:\\WSUS"
 
 wsus_languages:
@@ -11,3 +15,10 @@ wsus_products:
 wsus_classifications:
   - "Critical Updates"
   - "Security Updates"
+
+wsus_sync_from_microsoft_update: true
+wsus_sync_automatically: true
+wsus_sync_time_of_day: "03:00:00"
+wsus_syncs_per_day: 1
+wsus_sync_categories_before_selection: true
+wsus_start_initial_content_sync: false

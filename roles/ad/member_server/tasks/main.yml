@@ -1,0 +1,20 @@
+---
+- name: Joindre le serveur au domaine Active Directory
+  microsoft.ad.membership:
+    dns_domain_name: "{{ ad_domain_name }}"
+    domain_admin_user: "{{ member_server_domain_admin_user }}"
+    domain_admin_password: "{{ member_server_domain_admin_password }}"
+    domain_ou_path: "{{ member_server_domain_ou_path | default(omit) }}"
+    state: domain
+    reboot: true
+
+- name: Vérifier l'appartenance au domaine
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      $domain = (Get-CimInstance Win32_ComputerSystem).Domain
+      if ($domain -ne "{{ ad_domain_name }}") {
+          throw "Le serveur est dans '$domain' au lieu de '{{ ad_domain_name }}'."
+      }
+      Write-Output "Domaine OK: $domain"
+  changed_when: false

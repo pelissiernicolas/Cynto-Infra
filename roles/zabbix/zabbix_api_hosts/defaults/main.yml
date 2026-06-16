@@ -35,6 +35,11 @@ zabbix_api_managed_hosts:
     ip: "{{ hostvars['srv-ad-02'].ansible_host }}"
     host_group: Windows servers
     template: Windows by Zabbix agent active
+  - host_name: "{{ hostvars['srv-wsus-01'].server_hostname | default('srv-wsus-01') }}"
+    visible_name: "{{ hostvars['srv-wsus-01'].server_hostname | default('srv-wsus-01') }}.cynto.tech"
+    ip: "{{ hostvars['srv-wsus-01'].ansible_host }}"
+    host_group: Windows servers
+    template: Windows by Zabbix agent active
   - host_name: "{{ hostvars['fw-pfsense'].server_hostname | default('fw-pfsense') }}"
     visible_name: "{{ hostvars['fw-pfsense'].server_fqdn | default('pfsense.cynto.tech') }}"
     ip: "{{ hostvars['fw-pfsense'].ansible_host }}"
