@@ -1,0 +1,21 @@
+---
+wazuh_linux_agent_version: "4.14.5-1"
+wazuh_linux_agent_arch: amd64
+wazuh_linux_agent_deb_name: "wazuh-agent_{{ wazuh_linux_agent_version }}_{{ wazuh_linux_agent_arch }}.deb"
+wazuh_linux_agent_deb_url: "https://packages.wazuh.com/4.x/apt/pool/main/w/wazuh-agent/{{ wazuh_linux_agent_deb_name }}"
+wazuh_linux_agent_deb_path: "/tmp/{{ wazuh_linux_agent_deb_name }}"
+
+wazuh_linux_agent_manager: "10.8.40.17"
+wazuh_linux_agent_registration_password: '{{ vault_wazuh_authd_password | default("Cynto2026!") }}'
+wazuh_linux_agent_group: "linux-serveur"
+wazuh_linux_agent_name: "{{ server_hostname | default(inventory_hostname) }}"
+
+
+
+wazuh_linux_agent_required_packages:
+  - lsb-release
+  - libcap2-bin
+  - procps
+  - adduser
+
+wazuh_linux_agent_hide_sensitive_logs: true

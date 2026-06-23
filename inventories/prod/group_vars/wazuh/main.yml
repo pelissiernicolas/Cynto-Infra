@@ -50,6 +50,8 @@ wazuh_agent_groups:
     description: "Agents Windows postes clients"
   - name: windows-serveur
     description: "Agents Windows serveurs"
+  - name: linux-serveur
+    description: "Agents Linux serveurs"
 
 wazuh_authd_password: "{{ vault_wazuh_authd_password }}"
 

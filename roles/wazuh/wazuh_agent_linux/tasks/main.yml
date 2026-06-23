@@ -1,0 +1,117 @@
+---
+- name: Vérifier que l'hôte est compatible avec le paquet Wazuh amd64
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == "Debian"
+      - ansible_architecture in ["x86_64", "amd64"]
+    fail_msg: "Ce rôle installe le paquet Debian amd64 de l'agent Wazuh."
+
+- name: Vérifier l'état du paquet Wazuh Agent
+  ansible.builtin.command: dpkg-query -W -f=${Status} wazuh-agent
+  register: wazuh_linux_agent_package
+  changed_when: false
+  failed_when: false
+
+- name: Définir si l'agent Wazuh est complètement installé
+  ansible.builtin.set_fact:
+    wazuh_linux_agent_installed: "{{ wazuh_linux_agent_package.stdout == 'install ok installed' }}"
+
+- name: Installer les dépendances du paquet Wazuh Agent
+  ansible.builtin.apt:
+    name: "{{ wazuh_linux_agent_required_packages }}"
+    state: present
+    update_cache: true
+  when: not wazuh_linux_agent_installed
+
+- name: Télécharger le paquet Wazuh Agent
+  ansible.builtin.get_url:
+    url: "{{ wazuh_linux_agent_deb_url }}"
+    dest: "{{ wazuh_linux_agent_deb_path }}"
+    mode: "0644"
+  when: not wazuh_linux_agent_installed
+
+- name: Installer et enregistrer l'agent Wazuh
+  ansible.builtin.command:
+    cmd: "dpkg -i {{ wazuh_linux_agent_deb_path }}"
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+    WAZUH_MANAGER: "{{ wazuh_linux_agent_manager }}"
+    WAZUH_REGISTRATION_PASSWORD: "{{ wazuh_linux_agent_registration_password }}"
+    WAZUH_AGENT_GROUP: "{{ wazuh_linux_agent_group }}"
+    WAZUH_AGENT_NAME: "{{ wazuh_linux_agent_name }}"
+  no_log: "{{ wazuh_linux_agent_hide_sensitive_logs | bool }}"
+  when: not wazuh_linux_agent_installed
+
+- name: Remplacer le placeholder MANAGER_IP dans la configuration Wazuh Agent
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: '<address>MANAGER_IP</address>'
+    replace: '<address>{{ wazuh_linux_agent_manager }}</address>'
+
+- name: Vérifier si l'agent Wazuh possède déjà une clé d'enrôlement
+  ansible.builtin.shell: |
+    set -o pipefail
+    test -f /var/ossec/etc/client.keys && awk 'NF && $1 !~ /^#/ { found=1 } END { exit found ? 0 : 1 }' /var/ossec/etc/client.keys
+  args:
+    executable: /bin/bash
+  register: wazuh_linux_agent_has_key
+  changed_when: false
+  failed_when: false
+
+- name: Enrôler l'agent Wazuh auprès du manager
+  ansible.builtin.command:
+    argv:
+      - /var/ossec/bin/agent-auth
+      - -m
+      - "{{ wazuh_linux_agent_manager }}"
+      - -P
+      - "{{ wazuh_linux_agent_registration_password }}"
+      - -G
+      - "{{ wazuh_linux_agent_group }}"
+      - -A
+      - "{{ wazuh_linux_agent_name }}"
+  no_log: "{{ wazuh_linux_agent_hide_sensitive_logs | bool }}"
+  when: wazuh_linux_agent_has_key.rc != 0
+
+- name: Recharger systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Activer et démarrer l'agent Wazuh
+  block:
+    - name: Activer et démarrer le service wazuh-agent
+      ansible.builtin.systemd:
+        name: wazuh-agent
+        enabled: true
+        state: started
+  rescue:
+    - name: Récupérer l'état systemd de wazuh-agent
+      ansible.builtin.command: systemctl status wazuh-agent --no-pager -l
+      register: wazuh_linux_agent_systemctl_status
+      changed_when: false
+      failed_when: false
+
+    - name: Récupérer les derniers journaux de wazuh-agent
+      ansible.builtin.command: journalctl -u wazuh-agent -n 80 --no-pager
+      register: wazuh_linux_agent_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Afficher le diagnostic wazuh-agent
+      ansible.builtin.debug:
+        msg:
+          - "systemctl status wazuh-agent:"
+          - "{{ wazuh_linux_agent_systemctl_status.stdout_lines }}"
+          - "journalctl -u wazuh-agent -n 80:"
+          - "{{ wazuh_linux_agent_journal.stdout_lines }}"
+
+    - name: Arrêter le playbook après l'échec du service wazuh-agent
+      ansible.builtin.fail:
+        msg: "Le paquet Wazuh Agent est installé, mais le service wazuh-agent ne démarre pas. Voir le diagnostic affiché juste au-dessus."
+
+- name: Afficher la configuration appliquée à l'agent Wazuh
+  ansible.builtin.debug:
+    msg:
+      - "Agent Wazuh: {{ wazuh_linux_agent_name }}"
+      - "Manager Wazuh: {{ wazuh_linux_agent_manager }}"
+      - "Groupe Wazuh: {{ wazuh_linux_agent_group }}"

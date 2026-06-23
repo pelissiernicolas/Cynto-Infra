@@ -1,0 +1,7 @@
+---
+- name: Installation de l'agent Wazuh sur les hôtes Linux
+  hosts: linux_wazuh_agents
+  become: true
+  gather_facts: true
+  roles:
+    - wazuh_agent_linux
