@@ -271,6 +271,28 @@
     enabled: true
   loop: "{{ wsus_firewall_ports }}"
 
+- name: Créer les groupes ordinateurs WSUS
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      [void][reflection.assembly]::LoadWithPartialName("Microsoft.UpdateServices.Administration")
+
+      $server = [Microsoft.UpdateServices.Administration.AdminProxy]::GetUpdateServer()
+      $wantedGroups = @({{ wsus_computer_groups | map('to_json') | join(', ') }})
+      $currentGroups = @($server.GetComputerTargetGroups() | ForEach-Object { $_.Name })
+      $changed = $false
+
+      foreach ($group in $wantedGroups) {
+          if ($currentGroups -notcontains $group) {
+              $server.CreateComputerTargetGroup($group) | Out-Null
+              $changed = $true
+          }
+      }
+
+      if ($changed) { Write-Output "WSUS computer groups updated" } else { Write-Output "WSUS computer groups already present" }
+  register: wsus_computer_groups_result
+  changed_when: "'WSUS computer groups updated' in (wsus_computer_groups_result.output | default([]))"
+
 - name: Configurer WSUS
   ansible.windows.win_powershell:
     error_action: stop

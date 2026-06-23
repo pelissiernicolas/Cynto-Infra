@@ -1,0 +1,20 @@
+---
+wsus_gpo_server_url: "http://srv-wsus-01.{{ ad_domain_name }}:8530"
+wsus_gpo_status_url: "{{ wsus_gpo_server_url }}"
+
+wsus_gpo_au_options: 4
+wsus_gpo_scheduled_install_day: 0
+wsus_gpo_scheduled_install_time: 3
+wsus_gpo_detection_frequency_hours: 6
+wsus_gpo_no_auto_reboot_with_logged_on_users: true
+wsus_gpo_disable_dual_scan: true
+wsus_gpo_do_not_connect_to_internet_update_locations: false
+wsus_gpo_include_recommended_updates: true
+
+wsus_gpos:
+  - name: "GPO - WSUS Postes"
+    target_ou: "OU=Postes,DC=cynto,DC=tech"
+    target_group: "Postes"
+  - name: "GPO - WSUS Serveurs"
+    target_ou: "OU=Serveurs,DC=cynto,DC=tech"
+    target_group: "Serveurs"

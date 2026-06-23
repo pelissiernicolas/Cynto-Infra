@@ -29,6 +29,24 @@ fw_vlan20_users_allow:
     destination_port: DNS_PORTS
     description: DNS UDP vers AD
 
+  - name: VLAN20_USERS_to_AD_TCP
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp
+    source: VLAN20_USERS_NET
+    destination: AD_SERVERS
+    destination_port: AD_PORTS_TCP
+    description: Jonction domaine et authentification AD TCP
+
+  - name: VLAN20_USERS_to_AD_UDP
+    interface: VLAN20_USERS
+    action: pass
+    protocol: udp
+    source: VLAN20_USERS_NET
+    destination: AD_SERVERS
+    destination_port: AD_PORTS_UDP
+    description: Jonction domaine et authentification AD UDP
+
   # pfSense ne propose pas toujours "tcp/udp" pour une règle avec alias de ports :
   # on scinde en deux règles équivalentes (une TCP, une UDP).
   - name: VLAN20_USERS_to_WEB_TCP
@@ -57,3 +75,21 @@ fw_vlan20_users_allow:
     destination: NEXTCLOUD_SERVER
     destination_port: WEB_PORTS
     description: Accès Nextcloud depuis utilisateurs
+
+  - name: VLAN20_USERS_to_VNC_VLAN99
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp
+    source: VLAN20_USERS_NET
+    destination: VLAN99_MANAGEMENT_NET
+    destination_port: 5900
+    description: Accès VNC depuis utilisateurs vers VLAN99_MANAGEMENT
+
+  - name: VLAN20_USERS_to_WSUS_HTTP
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp
+    source: VLAN20_USERS_NET
+    destination: WSUS_SERVER
+    destination_port: WSUS_HTTP_PORT
+    description: Accès WSUS HTTP depuis utilisateurs

@@ -28,3 +28,13 @@ pfsense_port_aliases:
     type: port
     address: 22 3389 5985 5986 443
     description: SSH RDP WinRM HTTPS
+
+  - name: WSUS_HTTP_PORT
+    type: port
+    address: 8530
+    description: WSUS HTTP
+
+  - name: GLPI_AGENT_HTTPD_PORT
+    type: port
+    address: 62354
+    description: GLPI Agent HTTPD

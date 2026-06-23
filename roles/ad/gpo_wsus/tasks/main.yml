@@ -1,0 +1,104 @@
+---
+- name: Créer et configurer les GPO WSUS
+  ansible.windows.win_powershell:
+    error_action: stop
+    script: |
+      Import-Module GroupPolicy
+
+      $gpos = '{{ wsus_gpos | to_json }}' | ConvertFrom-Json
+
+      $serverUrl = "{{ wsus_gpo_server_url }}"
+      $statusUrl = "{{ wsus_gpo_status_url }}"
+      $changed = $false
+
+      function Convert-ToRegistryValue {
+          param(
+              [string]$Type,
+              $Value
+          )
+
+          if ($Type -eq "DWord") {
+              return [int]$Value
+          }
+          return [string]$Value
+      }
+
+      function Set-GpoRegistryValueIfNeeded {
+          param(
+              [string]$GpoName,
+              [string]$Key,
+              [string]$ValueName,
+              [string]$Type,
+              $Value
+          )
+
+          $wantedValue = Convert-ToRegistryValue -Type $Type -Value $Value
+          $current = $null
+          try {
+              $current = Get-GPRegistryValue -Name $GpoName -Key $Key -ValueName $ValueName -ErrorAction Stop
+          }
+          catch {
+              $current = $null
+          }
+
+          if (-not $current -or $current.Type.ToString() -ne $Type -or $current.Value -ne $wantedValue) {
+              Set-GPRegistryValue -Name $GpoName -Key $Key -ValueName $ValueName -Type $Type -Value $wantedValue | Out-Null
+              return $true
+          }
+          return $false
+      }
+
+      foreach ($item in $gpos) {
+          $gpoName = [string]$item.name
+          $targetOu = [string]$item.target_ou
+          $targetGroup = [string]$item.target_group
+
+          $gpo = Get-GPO -Name $gpoName -ErrorAction SilentlyContinue
+          if (-not $gpo) {
+              New-GPO -Name $gpoName | Out-Null
+              $changed = $true
+          }
+
+          $existingLink = Get-GPInheritance -Target $targetOu |
+              Select-Object -ExpandProperty GpoLinks |
+              Where-Object { $_.DisplayName -eq $gpoName }
+
+          if (-not $existingLink) {
+              New-GPLink -Name $gpoName -Target $targetOu -LinkEnabled Yes | Out-Null
+              $changed = $true
+          }
+          elseif ($existingLink.Enabled -ne "Yes" -and $existingLink.Enabled -ne $true) {
+              Set-GPLink -Name $gpoName -Target $targetOu -LinkEnabled Yes | Out-Null
+              $changed = $true
+          }
+
+          $wuKey = "HKLM\Software\Policies\Microsoft\Windows\WindowsUpdate"
+          $auKey = "$wuKey\AU"
+
+          $settings = @(
+              @{ Key = $wuKey; ValueName = "WUServer"; Type = "String"; Value = $serverUrl },
+              @{ Key = $wuKey; ValueName = "WUStatusServer"; Type = "String"; Value = $statusUrl },
+              @{ Key = $wuKey; ValueName = "TargetGroupEnabled"; Type = "DWord"; Value = 1 },
+              @{ Key = $wuKey; ValueName = "TargetGroup"; Type = "String"; Value = $targetGroup },
+              @{ Key = $wuKey; ValueName = "DisableDualScan"; Type = "DWord"; Value = [int][bool]::Parse("{{ wsus_gpo_disable_dual_scan | bool | string }}") },
+              @{ Key = $wuKey; ValueName = "DoNotConnectToWindowsUpdateInternetLocations"; Type = "DWord"; Value = [int][bool]::Parse("{{ wsus_gpo_do_not_connect_to_internet_update_locations | bool | string }}") },
+              @{ Key = $auKey; ValueName = "UseWUServer"; Type = "DWord"; Value = 1 },
+              @{ Key = $auKey; ValueName = "AUOptions"; Type = "DWord"; Value = [int]"{{ wsus_gpo_au_options }}" },
+              @{ Key = $auKey; ValueName = "ScheduledInstallDay"; Type = "DWord"; Value = [int]"{{ wsus_gpo_scheduled_install_day }}" },
+              @{ Key = $auKey; ValueName = "ScheduledInstallTime"; Type = "DWord"; Value = [int]"{{ wsus_gpo_scheduled_install_time }}" },
+              @{ Key = $auKey; ValueName = "DetectionFrequencyEnabled"; Type = "DWord"; Value = 1 },
+              @{ Key = $auKey; ValueName = "DetectionFrequency"; Type = "DWord"; Value = [int]"{{ wsus_gpo_detection_frequency_hours }}" },
+              @{ Key = $auKey; ValueName = "NoAutoRebootWithLoggedOnUsers"; Type = "DWord"; Value = [int][bool]::Parse("{{ wsus_gpo_no_auto_reboot_with_logged_on_users | bool | string }}") },
+              @{ Key = $auKey; ValueName = "IncludeRecommendedUpdates"; Type = "DWord"; Value = [int][bool]::Parse("{{ wsus_gpo_include_recommended_updates | bool | string }}") }
+          )
+
+          foreach ($setting in $settings) {
+              if (Set-GpoRegistryValueIfNeeded -GpoName $gpoName -Key $setting.Key -ValueName $setting.ValueName -Type $setting.Type -Value $setting.Value) {
+                  $changed = $true
+              }
+          }
+      }
+
+      if ($changed) { Write-Output "WSUS GPO updated" } else { Write-Output "WSUS GPO already compliant" }
+  register: wsus_gpo_result
+  changed_when: "'WSUS GPO updated' in (wsus_gpo_result.output | default([]))"

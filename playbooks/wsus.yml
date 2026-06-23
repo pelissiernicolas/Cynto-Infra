@@ -15,3 +15,9 @@
   gather_facts: false
   roles:
     - role: wsus
+
+- name: Configurer les GPO WSUS
+  hosts: primary_dc
+  gather_facts: false
+  roles:
+    - role: gpo_wsus

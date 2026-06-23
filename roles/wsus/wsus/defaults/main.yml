@@ -25,6 +25,11 @@ wsus_sync_categories_before_selection: true
 wsus_sync_categories_timeout_seconds: 3600
 wsus_start_initial_content_sync: false
 
+wsus_computer_groups:
+  - "Postes"
+  - "Serveurs"
+  - "Test"
+
 wsus_languages:
   - "fr"
   - "en"

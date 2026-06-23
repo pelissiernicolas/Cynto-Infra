@@ -34,6 +34,11 @@ pfsense_ip_aliases:
     address: 10.8.40.14
     description: Serveur GLPI
 
+  - name: WSUS_SERVER
+    type: host
+    address: 10.8.40.16
+    description: Serveur WSUS
+
   - name: MONITORING_SERVER
     type: host
     address: 10.8.40.20

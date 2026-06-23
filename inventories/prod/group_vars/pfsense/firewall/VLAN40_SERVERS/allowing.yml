@@ -29,6 +29,15 @@ fw_vlan40_servers_allow:
     destination_port: WEB_PORTS
     description: Updates serveurs HTTP HTTPS
 
+  - name: VLAN40_GLPI_to_GLPI_AGENT_HTTPD
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: tcp
+    source: GLPI_SERVER
+    destination: VLAN20_USERS_NET
+    destination_port: GLPI_AGENT_HTTPD_PORT
+    description: GLPI vers HTTPD des agents GLPI
+
   - name: VLAN40_Zabbix_to_PFSENSE_SNMP
     interface: VLAN40_SERVERS
     action: pass

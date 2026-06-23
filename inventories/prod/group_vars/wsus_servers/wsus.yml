@@ -22,3 +22,8 @@ wsus_sync_time_of_day: "03:00:00"
 wsus_syncs_per_day: 1
 wsus_sync_categories_before_selection: true
 wsus_start_initial_content_sync: false
+
+wsus_computer_groups:
+  - "Postes"
+  - "Serveurs"
+  - "Test"

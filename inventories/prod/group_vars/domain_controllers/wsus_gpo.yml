@@ -1,0 +1,11 @@
+---
+wsus_gpo_server_url: "http://srv-wsus-01.{{ ad_domain_name }}:8530"
+wsus_gpo_status_url: "{{ wsus_gpo_server_url }}"
+
+wsus_gpos:
+  - name: "GPO - WSUS Postes"
+    target_ou: "OU=Postes,DC=cynto,DC=tech"
+    target_group: "Postes"
+  - name: "GPO - WSUS Serveurs"
+    target_ou: "OU=Serveurs,DC=cynto,DC=tech"
+    target_group: "Serveurs"
