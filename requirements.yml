@@ -10,6 +10,7 @@ collections:
 
   # Serveurs Linux (Nextcloud, GLPI)
   - name: community.general      # timezone, divers
+  - name: ansible.posix          # sysctl, préparation Linux
   - name: community.mysql        # MariaDB (rôle partagé mariadb, nextcloud, glpi)
   - name: community.crypto       # certificats / clés (LDAPS, HTTPS internes)
   - name: community.zabbix        # rôle partagé zabbix (agent, serveur, proxy)
@@ -20,3 +21,4 @@ collections:
   # Équipements réseau
   - name: ansible.netcommon      # connexions network_cli
   - name: cisco.ios              # configuration CLI Cisco/SG
+

@@ -1,8 +1,8 @@
 pfsense_port_aliases:
   - name: WEB_PORTS
     type: port
-    address: 80 443 53
-    description: HTTP HTTPS DNS
+    address: 80 443
+    description: HTTP HTTPS
 
   - name: DNS_PORTS
     type: port
@@ -14,15 +14,10 @@ pfsense_port_aliases:
     address: 67 68
     description: DHCP client serveur
 
-  - name: AD_PORTS_TCP
+  - name: AD_PORTS
     type: port
-    address: 53 88 135 389 445 464 636 3268 3269 49152:65535
-    description: Ports TCP Active Directory
-
-  - name: AD_PORTS_UDP
-    type: port
-    address: 53 88 123 389 464
-    description: Ports UDP Active Directory
+    address: 53 88 123 135 389 445 464 636 3268 3269 49152:65535
+    description: Ports Active Directory TCP UDP
 
   - name: ADMIN_PORTS
     type: port
@@ -38,3 +33,43 @@ pfsense_port_aliases:
     type: port
     address: 62354
     description: GLPI Agent HTTPD
+
+  - name: SMTP_SUBMISSION_PORT
+    type: port
+    address: 587
+    description: SMTP submission
+
+  - name: SNMP_PORT
+    type: port
+    address: 161
+    description: SNMP
+
+  - name: NFS_PORT
+    type: port
+    address: 2049
+    description: NFS
+
+  - name: VNC_PORT
+    type: port
+    address: 5900
+    description: VNC
+
+  - name: ZABBIX_AGENT_PORT
+    type: port
+    address: 10050
+    description: Zabbix agent passif
+
+  - name: ZABBIX_SERVER_PORT
+    type: port
+    address: 10051
+    description: Zabbix server pour agents actifs
+
+  - name: WAZUH_AGENT_PORTS
+    type: port
+    address: 1514 1515
+    description: Wazuh agents et enrolement
+
+  - name: WAZUH_API_PORT
+    type: port
+    address: 55000
+    description: API Wazuh

@@ -56,3 +56,7 @@ vault_qdevice_ssh_password: "CHANGEME"
 vault_qdevice_become_password: "CHANGEME"
 vault_switch_ssh_password: "CHANGEME"
 vault_switch_enable_password: "CHANGEME"
+
+# --- Wazuh ---
+
+vault_wazuh_authd_password: "CHANGEME"

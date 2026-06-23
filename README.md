@@ -1,7 +1,7 @@
 # Cynto-Infra — Infrastructure Ansible unifiée
 
 Projet Ansible qui automatise le déploiement complet de l'infrastructure **cynto.tech** :
-Active Directory, pare-feu pfSense, Nextcloud, GLPI et WSUS — le tout orchestré depuis un
+Active Directory, pare-feu pfSense, Nextcloud, GLPI, WSUS, Zabbix et Wazuh — le tout orchestré depuis un
 dépôt unique, avec des rôles partagés factorisés et les secrets chiffrés via Ansible Vault.
 
 | Service | Rôle dans l'infra | Cible |
@@ -11,6 +11,7 @@ dépôt unique, avec des rôles partagés factorisés et les secrets chiffrés v
 | **Nextcloud** | Plateforme collaborative (LDAPS, AppAPI) | Ubuntu / SSH |
 | **GLPI** | Gestion de parc / ITSM (LDAPS, agent GPO) | Ubuntu / SSH |
 | **Zabbix** | Supervision (agents Linux/Windows, SNMP, API) | Ubuntu / SSH |
+| **Wazuh** | SIEM / XDR centralisé + déploiement agent par GPO | Ubuntu / SSH + AD |
 | **Switches Cisco SG500** | Configuration SNMP des commutateurs | SSH / SNMP |
 | **WSUS** | Mises à jour Windows centralisées | Windows Server / WinRM |
 
@@ -63,6 +64,7 @@ dépôt unique, avec des rôles partagés factorisés et les secrets chiffrés v
 | srv-nextcloud | 10.8.40.12 | Nextcloud (Apache + MariaDB + Redis) |
 | srv-glpi | 10.8.40.13 | GLPI (Apache + MariaDB) |
 | srv-zabbix | 10.8.40.x | Zabbix Server + frontend (Apache + MariaDB) |
+| srv-wazuh | 10.8.40.17 | Wazuh all-in-one (manager + indexer + dashboard) |
 | srv-wsus-01 | 10.8.40.16 | WSUS |
 | Proxmox / qdevice | — | Supervisés par Zabbix Agent 2 (agent only) |
 | Switches Cisco SG500 | — | Configurés via SNMP, supervisés via Zabbix |
@@ -87,8 +89,9 @@ Cynto-Infra/
 │       │   ├── nextcloud/      # application/ database/ ldap/ php/ server/ ssl/ appapi/
 │       │   ├── glpi/           # application/ database/ ldap/ server/ ssl/ web/
 │       │   ├── zabbix/         # server/ api/ agents/ snmp/
+│       │   ├── wazuh/          # server/ installation all-in-one
 │       │   └── wsus_servers/   # WSUS : disque, produits, classifications, sync
-│       └── host_vars/          # srv-ad-01, srv-ad-02, srv-wsus-01, srv-zabbix
+│       └── host_vars/          # srv-ad-01, srv-ad-02, srv-wsus-01, srv-zabbix, srv-wazuh
 ├── playbooks/
 │   ├── ad.yml                  # Service Active Directory
 │   ├── ldaps-prep.yml          # Étape partagée : AD CS + export CA (une seule fois)
@@ -97,6 +100,7 @@ Cynto-Infra/
 │   ├── glpi.yml                # Service GLPI
 │   ├── wsus.yml                # Service WSUS
 │   ├── zabbix.yml              # Service Zabbix (serveur + agents Linux/Windows + API)
+│   ├── wazuh.yml               # Service Wazuh (préparation VM + all-in-one + partage/GPO agent)
 │   └── switches.yml            # Configuration SNMP des switches Cisco SG500
 ├── playbooks/artifacts/ad-ca/  # CA exportée à l'exécution (ignorée par Git)
 │   ├── cynto-root-ca.cer       # Format DER (Windows)
@@ -159,6 +163,9 @@ Cynto-Infra/
     │   └── zabbix_snmp_test/   # Test SNMP de connectivité (switches)
     ├── wsus/
     │   └── wsus/               # Disque de contenu, rôle WSUS, post-install, sync
+    ├── wazuh/
+    │   ├── wazuh_server/       # Installation Wazuh all-in-one
+    │   └── gpo_wazuh_agent/    # Préparation partage + GPO pour déploiement agent Windows
     └── switches/
         └── sg500_snmp/         # Configuration SNMP des commutateurs Cisco SG500
 ```
@@ -166,7 +173,7 @@ Cynto-Infra/
 > **`roles_path` multi-dossiers.** Les rôles étant rangés par sous-dossier de service,
 > `ansible.cfg` déclare explicitement chaque chemin :
 > ```ini
-> roles_path = roles/ad:roles/pfsense:roles/nextcloud:roles/glpi:roles/zabbix:roles/wsus:roles/switches:roles/shared
+> roles_path = roles/ad:roles/pfsense:roles/nextcloud:roles/glpi:roles/zabbix:roles/wsus:roles/wazuh:roles/switches:roles/shared
 > ```
 
 ---
@@ -287,6 +294,9 @@ ansible-playbook playbooks/switches.yml --ask-vault-pass
 
 # 8. Zabbix (serveur en premier, puis agents et configuration API)
 ansible-playbook playbooks/zabbix.yml --ask-vault-pass --ask-pass --ask-become-pass
+
+# 9. Wazuh (préparation VM, installation all-in-one, puis préparation partage/GPO agent Windows)
+ansible-playbook playbooks/wazuh.yml --ask-vault-pass --ask-pass --ask-become-pass
 ```
 
 ### WSUS
@@ -370,3 +380,7 @@ Si le statut n'est pas détecté, vérifier que `occ` répond bien sur le serveu
 - Les fichiers parasites `*:Zone.Identifier` (flux ADS Windows) sont exclus par `.gitignore`.
 - Les artefacts de CA (`playbooks/artifacts/`) sont exclus de Git et régénérés à chaque exécution
   de `ldaps-prep.yml`.
+
+
+
+

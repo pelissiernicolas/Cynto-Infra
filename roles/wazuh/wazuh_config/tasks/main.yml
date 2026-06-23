@@ -1,0 +1,61 @@
+---
+- name: Vérifier que l'outil agent_groups existe
+  ansible.builtin.stat:
+    path: "{{ wazuh_agent_groups_command }}"
+  register: wazuh_agent_groups_command_stat
+
+- name: Bloquer si Wazuh Manager n'est pas installé
+  ansible.builtin.assert:
+    that:
+      - wazuh_agent_groups_command_stat.stat.exists
+    fail_msg: "{{ wazuh_agent_groups_command }} est introuvable. Installez Wazuh Manager avant de configurer les groupes agents."
+
+- name: Activer l'authentification par mot de passe pour l'enrôlement des agents
+  ansible.builtin.replace:
+    path: "{{ wazuh_manager_config_path }}"
+    regexp: '(<auth>[\s\S]*?<use_password>)\s*(?:yes|no|oui|non)\s*(</use_password>[\s\S]*?</auth>)'
+    replace: '\1yes\2'
+    backup: true
+  notify: Redémarrer Wazuh Manager
+
+- name: Créer le fichier de mot de passe authd
+  ansible.builtin.copy:
+    dest: "{{ wazuh_authd_password_path }}"
+    content: "{{ wazuh_authd_password }}\n"
+    owner: root
+    group: wazuh
+    mode: "0640"
+  no_log: true
+  notify: Redémarrer Wazuh Manager
+
+- name: Vérifier les groupes Wazuh existants
+  ansible.builtin.stat:
+    path: "{{ wazuh_agent_shared_dir }}/{{ item.name }}"
+  loop: "{{ wazuh_agent_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: wazuh_agent_group_dirs
+
+- name: Créer les groupes d'agents Wazuh
+  ansible.builtin.command: "{{ wazuh_agent_groups_command }} -a -g {{ item.item.name }} -q"
+  loop: "{{ wazuh_agent_group_dirs.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not item.stat.exists
+  register: wazuh_agent_group_create_result
+
+- name: Vérifier les groupes Wazuh après création
+  ansible.builtin.stat:
+    path: "{{ wazuh_agent_shared_dir }}/{{ item.name }}"
+  loop: "{{ wazuh_agent_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: wazuh_agent_group_verify
+
+- name: Afficher les groupes agents Wazuh disponibles
+  ansible.builtin.debug:
+    msg: "Groupe Wazuh prêt : {{ item.item.name }} -> {{ wazuh_agent_shared_dir }}/{{ item.item.name }}"
+  loop: "{{ wazuh_agent_group_verify.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.stat.exists

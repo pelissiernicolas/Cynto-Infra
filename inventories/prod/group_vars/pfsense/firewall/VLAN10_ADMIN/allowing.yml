@@ -1,5 +1,5 @@
 # group_vars/pfsense/firewall/VLAN10_ADMIN/allowing.yml
-# Règles d'AUTORISATION du VLAN d'administration (VLAN10_ADMIN).
+# Regles d'AUTORISATION du VLAN d'administration (VLAN10_ADMIN).
 fw_vlan10_admin_allow:
 
   - name: VLAN10_ADMIN_to_pfSense_SSH
@@ -9,22 +9,87 @@ fw_vlan10_admin_allow:
     source: VLAN10_ADMIN_NET
     destination: (self)
     destination_port: 22
-    description: Autoriser SSH vers pfSense depuis VLAN10
+    description: Administration SSH de pfSense depuis VLAN10
 
-  - name: VLAN10_ADMIN_to_pfSense_HTTP
+  - name: VLAN10_ADMIN_to_pfSense_HTTPS
     interface: VLAN10_ADMIN
     action: pass
     protocol: tcp
     source: VLAN10_ADMIN_NET
     destination: (self)
-    destination_port: 80
-    description: Autoriser HTTP vers pfSense depuis VLAN10
+    destination_port: 443
+    description: Administration HTTPS de pfSense depuis VLAN10
 
-  - name: VLAN10_ADMIN_to_ALL_ADMIN_PORTS
+  - name: VLAN10_ADMIN_to_DNS_AD
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp/udp
+    source: VLAN10_ADMIN_NET
+    destination: AD_SERVERS
+    destination_port: DNS_PORTS
+    description: DNS admin vers AD
+
+  - name: VLAN10_ADMIN_to_AD
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp/udp
+    source: VLAN10_ADMIN_NET
+    destination: AD_SERVERS
+    destination_port: AD_PORTS
+    description: Administration et authentification AD
+
+  - name: VLAN10_ADMIN_to_SERVERS_ADMIN
     interface: VLAN10_ADMIN
     action: pass
     protocol: tcp
     source: VLAN10_ADMIN_NET
-    destination: VLAN40_SERVERS
+    destination: VLAN40_SERVERS_NET
     destination_port: ADMIN_PORTS
     description: Administration des serveurs depuis VLAN10
+
+  - name: VLAN10_ADMIN_to_SERVERS_WEB
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp
+    source: VLAN10_ADMIN_NET
+    destination: VLAN40_SERVERS_NET
+    destination_port: WEB_PORTS
+    description: Consoles web des services internes depuis VLAN10
+
+  - name: VLAN10_ADMIN_to_MANAGEMENT_ADMIN
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp
+    source: VLAN10_ADMIN_NET
+    destination: VLAN99_MANAGEMENT_NET
+    destination_port: ADMIN_PORTS
+    description: Administration du reseau de management depuis VLAN10
+
+  - name: VLAN10_ADMIN_to_MANAGEMENT_WEB
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp
+    source: VLAN10_ADMIN_NET
+    destination: VLAN99_MANAGEMENT_NET
+    destination_port: WEB_PORTS
+    description: Consoles web du management depuis VLAN10
+
+  - name: VLAN10_ADMIN_to_MANAGEMENT_VNC
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp
+    source: VLAN10_ADMIN_NET
+    destination: VLAN99_MANAGEMENT_NET
+    destination_port: VNC_PORT
+    description: Acces VNC au management depuis VLAN10
+
+  - name: VLAN10_ADMIN_to_INTERNET_WEB
+    interface: VLAN10_ADMIN
+    action: pass
+    protocol: tcp
+    source: VLAN10_ADMIN_NET
+    destination: any
+    destination_port: WEB_PORTS
+    description: Acces web Internet depuis VLAN10
+
+fw_vlan10_admin_rules: "{{ fw_vlan10_admin_allow + fw_vlan10_admin_block }}"

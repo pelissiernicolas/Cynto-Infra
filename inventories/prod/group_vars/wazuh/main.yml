@@ -1,0 +1,55 @@
+---
+server_hostname: srv-wazuh
+server_fqdn: wazuh.cynto.tech
+
+netplan_interface: "{{ ansible_default_ipv4.interface }}"
+server_ip_cidr: 10.8.40.17/27
+server_gateway: 10.8.40.1
+server_dns:
+  - 10.8.40.10
+  - 10.8.40.11
+
+timezone: Europe/Paris
+
+wazuh_version_major: "4.14"
+wazuh_install_script_url: "https://packages.wazuh.com/{{ wazuh_version_major }}/wazuh-install.sh"
+wazuh_install_script_path: /root/wazuh-install.sh
+wazuh_install_workdir: /root
+wazuh_install_arguments: "-a"
+wazuh_install_log_path: /root/wazuh-install.log
+wazuh_install_timeout: 3600
+wazuh_install_poll_interval: 15
+wazuh_install_archive: /root/wazuh-install-files.tar
+wazuh_passwords_path: /root/wazuh-passwords.txt
+
+# Ubuntu 24.04 LTS est dans la matrice officielle Wazuh.
+wazuh_allow_unsupported_os: false
+
+wazuh_disable_swap: true
+wazuh_disable_repository_after_install: true
+wazuh_enable_ufw: false
+wazuh_allowed_tcp_ports:
+  - "22"
+  - "443"
+  - "1514"
+  - "1515"
+  - "55000"
+
+wazuh_required_packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - openssl
+  - python3-apt
+  - tar
+
+wazuh_agent_groups:
+  - name: clients-windows-11
+    description: "Agents Windows postes clients"
+  - name: windows-serveur
+    description: "Agents Windows serveurs"
+
+wazuh_authd_password: "{{ vault_wazuh_authd_password }}"
+

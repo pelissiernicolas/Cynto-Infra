@@ -7,6 +7,7 @@
 #   ansible-playbook playbooks/pfsense.yml
 #   ansible-playbook playbooks/nextcloud.yml
 #   ansible-playbook playbooks/glpi.yml
+#   ansible-playbook playbooks/wazuh.yml
 # (les services LDAPS supposent que playbooks/ldaps-prep.yml a déjà été lancé).
 #
 # Déploiement complet :
@@ -32,3 +33,7 @@
 
 # 7. Supervision : Zabbix
 - import_playbook: playbooks/zabbix.yml
+
+# 8. SIEM / XDR : Wazuh
+- import_playbook: playbooks/wazuh.yml
+

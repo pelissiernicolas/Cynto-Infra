@@ -1,27 +1,19 @@
 # group_vars/pfsense/firewall/VLAN20_USERS/blocking.yml
-# Règles de BLOCAGE du VLAN utilisateurs (VLAN20_USERS).
+# Regles de BLOCAGE du VLAN utilisateurs (VLAN20_USERS).
 fw_vlan20_users_block:
 
-  - name: BLOCK_VLAN20_to_VLAN10
+  - name: BLOCK_VLAN20_to_pfSense
     interface: VLAN20_USERS
     action: block
     protocol: any
     source: VLAN20_USERS_NET
-    destination: VLAN10_ADMIN_NET
-    description: Bloquer utilisateurs vers admin
+    destination: (self)
+    description: Bloquer acces pfSense depuis VLAN20
 
-  - name: BLOCK_VLAN20_to_VLAN40
+  - name: BLOCK_VLAN20_to_INTERNAL_NETWORKS
     interface: VLAN20_USERS
     action: block
     protocol: any
     source: VLAN20_USERS_NET
-    destination: VLAN40_SERVERS_NET
-    description: Bloquer utilisateurs vers serveurs (hors règles autorisées)
-
-  - name: BLOCK_ALL_to_pfSense
-    interface: VLAN20_USERS
-    action: block
-    protocol: any
-    source: VLAN20_USERS_NET
-    destination: "(self)"
-    description: Bloquer accès pfSense depuis VLAN20
+    destination: INTERNAL_NETWORKS
+    description: Bloquer inter-VLAN utilisateurs hors exceptions explicites

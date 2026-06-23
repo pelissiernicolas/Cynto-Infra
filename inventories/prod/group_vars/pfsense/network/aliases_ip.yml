@@ -19,6 +19,16 @@ pfsense_ip_aliases:
     address: 10.8.40.0/27
     description: Réseau serveurs
 
+  - name: VLAN99_MANAGEMENT_NET
+    type: network
+    address: 10.8.99.0/28
+    description: Réseau management
+
+  - name: INTERNAL_NETWORKS
+    type: network
+    address: 10.8.10.0/28 10.8.20.0/26 10.8.40.0/27 10.8.60.0/26 10.8.99.0/28
+    description: Réseaux internes Cynto
+
   - name: AD_SERVERS
     type: host
     address: 10.8.40.10 10.8.40.11
@@ -26,20 +36,45 @@ pfsense_ip_aliases:
 
   - name: NEXTCLOUD_SERVER
     type: host
-    address: 10.8.40.13
+    address: 10.8.40.12
     description: Serveur Nextcloud
 
   - name: GLPI_SERVER
     type: host
-    address: 10.8.40.14
+    address: 10.8.40.13
     description: Serveur GLPI
+
+  - name: PBS_SERVER
+    type: host
+    address: 10.8.40.14
+    description: Proxmox Backup Server
+
+  - name: ZABBIX_SERVER
+    type: host
+    address: 10.8.40.15
+    description: Serveur Zabbix
 
   - name: WSUS_SERVER
     type: host
     address: 10.8.40.16
     description: Serveur WSUS
 
+  - name: WAZUH_SERVER
+    type: host
+    address: 10.8.40.17
+    description: Serveur Wazuh
+
   - name: MONITORING_SERVER
     type: host
-    address: 10.8.40.20
-    description: Prometheus Grafana
+    address: 10.8.40.15
+    description: Serveur de supervision
+
+  - name: SG500_SWITCH
+    type: host
+    address: 10.8.99.2
+    description: Switch Cisco SG500
+
+  - name: QNAP_NAS
+    type: host
+    address: 10.8.99.10
+    description: NAS QNAP

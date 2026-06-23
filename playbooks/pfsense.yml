@@ -31,6 +31,7 @@
   gather_facts: false
   collections:
     - pfsensible.core
+  tags: aliases
   roles:
     - aliases
 

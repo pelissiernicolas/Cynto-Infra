@@ -1,6 +1,6 @@
 # group_vars/pfsense/firewall/VLAN20_USERS/allowing.yml
-# Règles d'AUTORISATION du VLAN utilisateurs (VLAN20_USERS).
-fw_vlan20_users_allow:
+# Regles d'AUTORISATION du VLAN utilisateurs (VLAN20_USERS).
+fw_vlan20_users_allow_internal:
 
   - name: VLAN20_USERS_to_DHCP_RELAY
     interface: VLAN20_USERS
@@ -11,79 +11,41 @@ fw_vlan20_users_allow:
     destination_port: DHCP_PORTS
     description: DHCP utilisateurs vers relais pfSense
 
-  - name: VLAN20_USERS_to_DNS_AD_TCP
-    interface: VLAN20_USERS
-    action: pass
-    protocol: tcp
-    source: VLAN20_USERS_NET
-    destination: AD_SERVERS
-    destination_port: DNS_PORTS
-    description: DNS TCP vers AD
-
-  - name: VLAN20_USERS_to_DNS_AD_UDP
-    interface: VLAN20_USERS
-    action: pass
-    protocol: udp
-    source: VLAN20_USERS_NET
-    destination: AD_SERVERS
-    destination_port: DNS_PORTS
-    description: DNS UDP vers AD
-
-  - name: VLAN20_USERS_to_AD_TCP
-    interface: VLAN20_USERS
-    action: pass
-    protocol: tcp
-    source: VLAN20_USERS_NET
-    destination: AD_SERVERS
-    destination_port: AD_PORTS_TCP
-    description: Jonction domaine et authentification AD TCP
-
-  - name: VLAN20_USERS_to_AD_UDP
-    interface: VLAN20_USERS
-    action: pass
-    protocol: udp
-    source: VLAN20_USERS_NET
-    destination: AD_SERVERS
-    destination_port: AD_PORTS_UDP
-    description: Jonction domaine et authentification AD UDP
-
-  # pfSense ne propose pas toujours "tcp/udp" pour une règle avec alias de ports :
-  # on scinde en deux règles équivalentes (une TCP, une UDP).
-  - name: VLAN20_USERS_to_WEB_TCP
+  - name: VLAN20_USERS_to_DNS_AD
     interface: VLAN20_USERS
     action: pass
     protocol: tcp/udp
     source: VLAN20_USERS_NET
-    destination: any
-    destination_port: WEB_PORTS
-    description: Accès web utilisateurs (TCP)
+    destination: AD_SERVERS
+    destination_port: DNS_PORTS
+    description: DNS utilisateurs vers AD
 
-  # - name: VLAN20_USERS_to_WEB_UDP
-  #   interface: VLAN20_USERS
-  #   action: pass
-  #   protocol: udp
-  #   source: VLAN20_USERS_NET
-  #   destination: any
-  #   destination_port: WEB_PORTS
-  #   description: Accès web utilisateurs (UDP)
+  - name: VLAN20_USERS_to_AD
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp/udp
+    source: VLAN20_USERS_NET
+    destination: AD_SERVERS
+    destination_port: AD_PORTS
+    description: Jonction domaine et authentification AD
 
-  - name: VLAN20_USERS_to_NEXTCLOUD
+  - name: VLAN20_USERS_to_NEXTCLOUD_WEB
     interface: VLAN20_USERS
     action: pass
     protocol: tcp
     source: VLAN20_USERS_NET
     destination: NEXTCLOUD_SERVER
     destination_port: WEB_PORTS
-    description: Accès Nextcloud depuis utilisateurs
+    description: Acces Nextcloud depuis utilisateurs
 
-  - name: VLAN20_USERS_to_VNC_VLAN99
+  - name: VLAN20_USERS_to_GLPI_WEB
     interface: VLAN20_USERS
     action: pass
     protocol: tcp
     source: VLAN20_USERS_NET
-    destination: VLAN99_MANAGEMENT_NET
-    destination_port: 5900
-    description: Accès VNC depuis utilisateurs vers VLAN99_MANAGEMENT
+    destination: GLPI_SERVER
+    destination_port: WEB_PORTS
+    description: Acces GLPI depuis utilisateurs
 
   - name: VLAN20_USERS_to_WSUS_HTTP
     interface: VLAN20_USERS
@@ -92,4 +54,36 @@ fw_vlan20_users_allow:
     source: VLAN20_USERS_NET
     destination: WSUS_SERVER
     destination_port: WSUS_HTTP_PORT
-    description: Accès WSUS HTTP depuis utilisateurs
+    description: Acces WSUS HTTP depuis utilisateurs
+
+  - name: VLAN20_USERS_to_WAZUH_AGENT
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp
+    source: VLAN20_USERS_NET
+    destination: WAZUH_SERVER
+    destination_port: WAZUH_AGENT_PORTS
+    description: Agents Wazuh utilisateurs vers manager
+
+  - name: VLAN20_USERS_to_ZABBIX_ACTIVE
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp
+    source: VLAN20_USERS_NET
+    destination: ZABBIX_SERVER
+    destination_port: ZABBIX_SERVER_PORT
+    description: Agents Zabbix actifs utilisateurs vers serveur
+
+fw_vlan20_users_allow_internet:
+
+  - name: VLAN20_USERS_to_INTERNET_WEB
+    interface: VLAN20_USERS
+    action: pass
+    protocol: tcp
+    source: VLAN20_USERS_NET
+    destination: any
+    destination_port: WEB_PORTS
+    description: Acces web Internet utilisateurs
+
+fw_vlan20_users_allow: "{{ fw_vlan20_users_allow_internal + fw_vlan20_users_allow_internet }}"
+fw_vlan20_users_rules: "{{ fw_vlan20_users_allow_internal + fw_vlan20_users_block + fw_vlan20_users_allow_internet }}"

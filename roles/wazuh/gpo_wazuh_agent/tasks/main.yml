@@ -1,0 +1,151 @@
+---
+- name: Recréer les GPO Wazuh corrompues
+  ansible.windows.win_shell: |
+    Import-Module GroupPolicy
+
+    $GpoName = "{{ item.gpo_name }}"
+    $TargetOU = "{{ item.target_ou }}"
+
+    $existing = Get-GPO -Name $GpoName -ErrorAction SilentlyContinue
+    if ($existing) {
+        Remove-GPO -Name $GpoName -Confirm:$false
+    }
+
+    New-GPO -Name $GpoName | Out-Null
+    New-GPLink -Name $GpoName -Target $TargetOU -LinkEnabled Yes | Out-Null
+  loop: "{{ wazuh_agent_deployments | selectattr('id', 'in', wazuh_agent_gpo_recreate_ids) | list }}"
+  loop_control:
+    label: "{{ item.gpo_name }}"
+  changed_when: true
+  tags:
+    - wazuh_gpo_repair
+- name: Vérifier que le MSI Wazuh existe sur la machine Ansible
+  ansible.builtin.stat:
+    path: "{{ wazuh_agent_msi_src }}"
+  delegate_to: localhost
+  become: false
+  register: wazuh_agent_msi_stat
+
+- name: Vérifier que les MST Wazuh existent sur la machine Ansible
+  ansible.builtin.stat:
+    path: "{{ item.mst_src }}"
+  delegate_to: localhost
+  become: false
+  loop: "{{ wazuh_agent_deployments }}"
+  loop_control:
+    label: "{{ item.id }}: {{ item.mst_src }}"
+  register: wazuh_agent_mst_stats
+
+- name: Bloquer si le MSI Wazuh est absent côté Ansible
+  ansible.builtin.assert:
+    that:
+      - wazuh_agent_msi_stat.stat.exists
+    fail_msg: >-
+      Placez {{ wazuh_agent_msi_name }} sur la machine Ansible, par défaut dans
+      roles/wazuh/gpo_wazuh_agent/files/, ou surchargez wazuh_agent_msi_src.
+
+- name: Bloquer si un MST Wazuh est absent côté Ansible
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      MST absent pour {{ item.item.id }} : {{ item.item.mst_src }}.
+      Placez les deux MST dans roles/wazuh/gpo_wazuh_agent/files/ ou surchargez
+      wazuh_agent_deployments[].mst_src.
+  loop: "{{ wazuh_agent_mst_stats.results }}"
+  loop_control:
+    label: "{{ item.item.id }}"
+
+- name: Créer le dossier de partage applicatif
+  ansible.windows.win_file:
+    path: "{{ wazuh_agent_share_path }}"
+    state: directory
+
+- name: Créer le dossier Wazuh Agent dans le partage
+  ansible.windows.win_file:
+    path: '{{ wazuh_agent_share_path }}\{{ wazuh_agent_deploy_folder }}'
+    state: directory
+
+- name: Créer ou mettre à jour le partage Applications$
+  ansible.windows.win_share:
+    name: "{{ wazuh_agent_share_name }}"
+    path: "{{ wazuh_agent_share_path }}"
+    description: "Partage de déploiement logiciel"
+    list: false
+    full: "Administrateurs"
+    read: "{{ domain_computers_group }}"
+
+- name: Copier le MSI Wazuh Agent dans le partage serveur
+  ansible.windows.win_copy:
+    src: "{{ wazuh_agent_msi_src }}"
+    dest: '{{ wazuh_agent_share_path }}\{{ wazuh_agent_deploy_folder }}\{{ wazuh_agent_msi_name }}'
+
+- name: Copier les MST Wazuh Agent dans le partage serveur
+  ansible.windows.win_copy:
+    src: "{{ item.mst_src }}"
+    dest: '{{ wazuh_agent_share_path }}\{{ wazuh_agent_deploy_folder }}\{{ item.mst_name }}'
+  loop: "{{ wazuh_agent_deployments }}"
+  loop_control:
+    label: "{{ item.id }}: {{ item.mst_name }}"
+
+- name: Créer les GPO Wazuh et les associer aux OU cibles
+  ansible.windows.win_shell: |
+    Import-Module GroupPolicy
+
+    $GpoName = "{{ item.gpo_name }}"
+    $TargetOU = "{{ item.target_ou }}"
+
+    $gpo = Get-GPO -Name $GpoName -ErrorAction SilentlyContinue
+    if (-not $gpo) {
+        New-GPO -Name $GpoName | Out-Null
+    }
+
+    $existingLink = Get-GPInheritance -Target $TargetOU |
+        Select-Object -ExpandProperty GpoLinks |
+        Where-Object { $_.DisplayName -eq $GpoName }
+
+    if (-not $existingLink) {
+        New-GPLink -Name $GpoName -Target $TargetOU -LinkEnabled Yes | Out-Null
+    }
+  loop: "{{ wazuh_agent_deployments }}"
+  loop_control:
+    label: "{{ item.gpo_name }} -> {{ item.target_ou }}"
+  register: gpo_wazuh_creation_result
+  changed_when: true
+
+- name: Créer la GPO vide d'activation Wazuh Agent
+  ansible.windows.win_shell: |
+    Import-Module GroupPolicy
+
+    $GpoName = "{{ wazuh_agent_activation_gpo.name }}"
+    $TargetOU = "{{ item }}"
+
+    $gpo = Get-GPO -Name $GpoName -ErrorAction SilentlyContinue
+    if (-not $gpo) {
+        New-GPO -Name $GpoName | Out-Null
+    }
+
+    $existingLink = Get-GPInheritance -Target $TargetOU |
+        Select-Object -ExpandProperty GpoLinks |
+        Where-Object { $_.DisplayName -eq $GpoName }
+
+    if (-not $existingLink) {
+        New-GPLink -Name $GpoName -Target $TargetOU -LinkEnabled Yes | Out-Null
+    }
+  loop: "{{ wazuh_agent_activation_gpo.target_ous }}"
+  loop_control:
+    label: "{{ wazuh_agent_activation_gpo.name }} -> {{ item }}"
+  register: gpo_wazuh_activation_creation_result
+  changed_when: true
+- name: Afficher les actions manuelles à réaliser dans GPMC
+  ansible.builtin.debug:
+    msg:
+      - "Partage créé : {{ wazuh_agent_deploy_share_unc }}"
+      - "MSI : {{ wazuh_agent_deploy_share_unc }}\\{{ wazuh_agent_msi_name }}"
+      - "GPO clients : {{ wazuh_agent_deployments[0].gpo_name }} -> package MSI + modification {{ wazuh_agent_deploy_share_unc }}\\{{ wazuh_agent_deployments[0].mst_name }}"
+      - "GPO serveurs : {{ wazuh_agent_deployments[1].gpo_name }} -> package MSI + modification {{ wazuh_agent_deploy_share_unc }}\\{{ wazuh_agent_deployments[1].mst_name }}"
+      - "GPO activation : {{ wazuh_agent_activation_gpo.name }} -> configuration manuelle du service WazuhSvc"
+
+
+
+

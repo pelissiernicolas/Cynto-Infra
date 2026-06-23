@@ -1,0 +1,33 @@
+---
+- name: Préparation du serveur Wazuh
+  hosts: wazuh
+  become: true
+  gather_facts: true
+  roles:
+    - base_server
+
+- name: Installation Wazuh all-in-one
+  hosts: wazuh
+  become: true
+  gather_facts: true
+  roles:
+    - wazuh_server
+
+- name: Configuration Wazuh
+  hosts: wazuh
+  become: true
+  gather_facts: false
+  tags:
+    - wazuh_config
+  roles:
+    - wazuh_config
+- name: Déploiement de la GPO Wazuh Agent côté Active Directory
+  hosts: ad
+  gather_facts: false
+  tags:
+    - gpo_wazuh_agent
+  roles:
+    - gpo_wazuh_agent
+
+
+

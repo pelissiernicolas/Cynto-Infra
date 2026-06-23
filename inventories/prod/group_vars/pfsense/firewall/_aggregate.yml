@@ -1,16 +1,16 @@
 # group_vars/pfsense/firewall/_aggregate.yml
 # -----------------------------------------------------------------------------
-# Agrégation des règles firewall définies PAR VLAN dans les sous-dossiers
+# Agregation des regles firewall definies PAR VLAN dans les sous-dossiers
 # VLAN10_ADMIN/, VLAN20_USERS/, VLAN40_SERVERS/, VLAN60_WIFI/
 # (fichiers allowing.yml / blocking.yml).
 #
-# Ansible ne fusionne PAS automatiquement deux listes portant le même nom : le
-# dernier fichier chargé écraserait les précédents. Chaque VLAN expose donc ses
-# propres variables (fw_<vlan>_allow / fw_<vlan>_block) et ce fichier les
-# concatène dans les deux listes finales consommées par le rôle firewall_rules.
-#
-# Les expressions Jinja sont évaluées à l'exécution (lazy) ; l'ordre de
-# chargement des fichiers de group_vars n'a donc aucune importance.
+# Les regles sont exposees dans pfsense_firewall_rules avec un ordre explicite :
+# exceptions internes, blocages inter-VLAN, puis sorties Internet generales.
+# Cela evite qu'une regle Internet vers "any" n'ouvre aussi les reseaux internes.
 # -----------------------------------------------------------------------------
+pfsense_firewall_rules: "{{ fw_vlan10_admin_rules + fw_vlan20_users_rules + fw_vlan40_servers_rules + fw_vlan60_wifi_rules }}"
+
+# Variables historiques conservees pour les appels qui consommeraient encore les
+# anciennes listes separees.
 pfsense_allowing_rules: "{{ fw_vlan10_admin_allow + fw_vlan20_users_allow + fw_vlan40_servers_allow + fw_vlan60_wifi_allow }}"
 pfsense_blocking_rules: "{{ fw_vlan10_admin_block + fw_vlan20_users_block + fw_vlan40_servers_block + fw_vlan60_wifi_block }}"

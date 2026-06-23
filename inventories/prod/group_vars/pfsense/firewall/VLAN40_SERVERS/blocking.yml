@@ -1,19 +1,19 @@
 # group_vars/pfsense/firewall/VLAN40_SERVERS/blocking.yml
-# Règles de BLOCAGE du VLAN serveurs (VLAN40_SERVERS).
+# Regles de BLOCAGE du VLAN serveurs (VLAN40_SERVERS).
 fw_vlan40_servers_block:
 
-  - name: BLOCK_VLAN40_to_VLAN10
+  - name: BLOCK_VLAN40_to_pfSense
     interface: VLAN40_SERVERS
     action: block
     protocol: any
     source: VLAN40_SERVERS_NET
-    destination: VLAN10_ADMIN_NET
-    description: Bloquer serveurs vers admin
+    destination: (self)
+    description: Bloquer acces pfSense depuis VLAN40 hors exceptions explicites
 
-  - name: BLOCK_ALL_to_pfSense_SERVERS
+  - name: BLOCK_VLAN40_to_INTERNAL_NETWORKS
     interface: VLAN40_SERVERS
     action: block
     protocol: any
     source: VLAN40_SERVERS_NET
-    destination: "(self)"
-    description: Bloquer accès pfSense depuis VLAN40
+    destination: INTERNAL_NETWORKS
+    description: Bloquer inter-VLAN serveurs hors exceptions explicites

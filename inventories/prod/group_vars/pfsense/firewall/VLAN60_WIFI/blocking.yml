@@ -1,3 +1,19 @@
 # group_vars/pfsense/firewall/VLAN60_WIFI/blocking.yml
-# Règles de BLOCAGE du VLAN WiFi (VLAN60_WiFi).
-fw_vlan60_wifi_block: []
+# Regles de BLOCAGE du VLAN WiFi (VLAN60_WiFi).
+fw_vlan60_wifi_block:
+
+  - name: BLOCK_VLAN60_to_pfSense
+    interface: VLAN60_WiFi
+    action: block
+    protocol: any
+    source: VLAN60_WIFI_NET
+    destination: (self)
+    description: Bloquer acces pfSense depuis VLAN60
+
+  - name: BLOCK_VLAN60_to_INTERNAL_NETWORKS
+    interface: VLAN60_WiFi
+    action: block
+    protocol: any
+    source: VLAN60_WIFI_NET
+    destination: INTERNAL_NETWORKS
+    description: Bloquer inter-VLAN WiFi hors exceptions explicites

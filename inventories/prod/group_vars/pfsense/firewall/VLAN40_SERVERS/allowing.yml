@@ -1,33 +1,15 @@
 # group_vars/pfsense/firewall/VLAN40_SERVERS/allowing.yml
-# Règles d'AUTORISATION du VLAN serveurs (VLAN40_SERVERS).
-fw_vlan40_servers_allow:
+# Regles d'AUTORISATION du VLAN serveurs (VLAN40_SERVERS).
+fw_vlan40_servers_allow_internal:
 
-  - name: VLAN40_SERVERS_to_AD_TCP
-    interface: VLAN40_SERVERS
-    action: pass
-    protocol: tcp
-    source: VLAN40_SERVERS_NET
-    destination: AD_SERVERS
-    destination_port: AD_PORTS_TCP
-    description: Serveurs vers AD TCP
-
-  - name: VLAN40_SERVERS_to_AD_UDP
-    interface: VLAN40_SERVERS
-    action: pass
-    protocol: udp
-    source: VLAN40_SERVERS_NET
-    destination: AD_SERVERS
-    destination_port: AD_PORTS_UDP
-    description: Serveurs vers AD UDP
-
-  - name: VLAN40_SERVERS_to_WEB
+  - name: VLAN40_SERVERS_to_AD
     interface: VLAN40_SERVERS
     action: pass
     protocol: tcp/udp
     source: VLAN40_SERVERS_NET
-    destination: any
-    destination_port: WEB_PORTS
-    description: Updates serveurs HTTP HTTPS
+    destination: AD_SERVERS
+    destination_port: AD_PORTS
+    description: Serveurs vers AD
 
   - name: VLAN40_GLPI_to_GLPI_AGENT_HTTPD
     interface: VLAN40_SERVERS
@@ -38,55 +20,70 @@ fw_vlan40_servers_allow:
     destination_port: GLPI_AGENT_HTTPD_PORT
     description: GLPI vers HTTPD des agents GLPI
 
-  - name: VLAN40_Zabbix_to_PFSENSE_SNMP
+  - name: VLAN40_ZABBIX_to_PFSENSE_SNMP
     interface: VLAN40_SERVERS
     action: pass
     protocol: udp
-    source: 10.8.40.15
-    destination: "(self)"
-    destination_port: 161
+    source: ZABBIX_SERVER
+    destination: (self)
+    destination_port: SNMP_PORT
     description: Zabbix vers pfSense SNMP
 
-  - name: VLAN40_Zabbix_to_SG500_SNMP
+  - name: VLAN40_ZABBIX_to_SG500_SNMP
     interface: VLAN40_SERVERS
     action: pass
     protocol: udp
-    source: 10.8.40.15
-    destination: 10.8.99.2
-    destination_port: 161
+    source: ZABBIX_SERVER
+    destination: SG500_SWITCH
+    destination_port: SNMP_PORT
     description: Zabbix vers switch SG500 SNMP
 
-  - name: VLAN40_Zabbix_to_SNTP_free
+  - name: VLAN40_ZABBIX_to_QNAP_SNMP
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: udp
+    source: ZABBIX_SERVER
+    destination: QNAP_NAS
+    destination_port: SNMP_PORT
+    description: Zabbix vers QNAP SNMP
+
+  - name: VLAN40_ZABBIX_to_USERS_AGENT
     interface: VLAN40_SERVERS
     action: pass
     protocol: tcp
-    source: 10.8.40.15
-    destination: any
-    destination_port: 587
-    description: Zabbix vers SNTP Free
+    source: ZABBIX_SERVER
+    destination: VLAN20_USERS_NET
+    destination_port: ZABBIX_AGENT_PORT
+    description: Supervision passive Zabbix des postes utilisateurs
 
-  - name: VLAN40_Zabbix_to_QNAP_SNMP
-    interface: VLAN40_SERVERS
-    action: pass
-    protocol: udp
-    source: 10.8.40.15
-    destination: 10.8.99.10
-    destination_port: 161
-    description: Zabbix vers switch SG500 SNMP
-
-  - name: VLAN40_PBS_to_NAS
-    interface: VLAN40_SERVERS
-    action: pass
-    protocol: any
-    source: 10.8.40.14
-    destination: 10.8.99.10
-    description: PBS vers NAS 
-
-  - name: VLAN40_PBS_to_NAS_NFS
+  - name: VLAN40_PBS_to_QNAP_NFS
     interface: VLAN40_SERVERS
     action: pass
     protocol: tcp/udp
-    source: 10.8.40.14
-    destination: 10.8.99.10
-    destination_port: 2049
-    description: PBS vers NAS port 2049 NFS
+    source: PBS_SERVER
+    destination: QNAP_NAS
+    destination_port: NFS_PORT
+    description: PBS vers NAS QNAP en NFS
+
+fw_vlan40_servers_allow_internet:
+
+  - name: VLAN40_SERVERS_to_INTERNET_WEB
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: tcp
+    source: VLAN40_SERVERS_NET
+    destination: any
+    destination_port: WEB_PORTS
+    description: Updates serveurs HTTP HTTPS
+
+  - name: VLAN40_ZABBIX_to_SMTP_SUBMISSION
+    interface: VLAN40_SERVERS
+    action: pass
+    protocol: tcp
+    source: ZABBIX_SERVER
+    destination: any
+    destination_port: SMTP_SUBMISSION_PORT
+    description: Envoi mail Zabbix via SMTP submission
+
+fw_vlan40_servers_allow: "{{ fw_vlan40_servers_allow_internal + fw_vlan40_servers_allow_internet }}"
+fw_vlan40_servers_rules: "{{ fw_vlan40_servers_allow_internal + fw_vlan40_servers_block + fw_vlan40_servers_allow_internet }}"

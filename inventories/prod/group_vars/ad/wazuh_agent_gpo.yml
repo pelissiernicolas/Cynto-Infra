@@ -1,0 +1,27 @@
+---
+
+wazuh_agent_msi_name: "wazuh-agent.msi"
+wazuh_agent_share_name: "Applications$"
+wazuh_agent_share_path: 'C:\Applications'
+wazuh_agent_deploy_folder: "Wazuh-Agent"
+wazuh_agent_deploy_share_unc: '\\srv-ad-01\Applications$\Wazuh-Agent'
+
+wazuh_agent_deployments:
+  - id: clients
+    gpo_name: "GPO - Installation Wazuh Agent - Clients"
+    target_ou: "OU=Postes,DC=cynto,DC=tech"
+    mst_name: "wazuh-agent-clients.mst"
+    mst_src: '{{ role_path }}/files/wazuh-agent-clients.mst'
+
+  - id: servers
+    gpo_name: "GPO - Installation Wazuh Agent - Serveurs"
+    target_ou: "OU=Serveurs,DC=cynto,DC=tech"
+    mst_name: "wazuh-agent-servers.mst"
+    mst_src: '{{ role_path }}/files/wazuh-agent-servers.mst'
+
+wazuh_agent_activation_gpo:
+  name: "GPO - Activation Wazuh Agent"
+  target_ous:
+    - "OU=Postes,DC=cynto,DC=tech"
+    - "OU=Serveurs,DC=cynto,DC=tech"
+

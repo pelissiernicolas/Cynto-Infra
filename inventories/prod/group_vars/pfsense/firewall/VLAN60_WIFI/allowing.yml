@@ -1,6 +1,6 @@
 # group_vars/pfsense/firewall/VLAN60_WIFI/allowing.yml
-# Règles d'AUTORISATION du VLAN WiFi (VLAN60_WiFi).
-fw_vlan60_wifi_allow:
+# Regles d'AUTORISATION du VLAN WiFi (VLAN60_WiFi).
+fw_vlan60_wifi_allow_internal:
 
   - name: VLAN60_WIFI_to_DHCP_RELAY
     interface: VLAN60_WiFi
@@ -11,20 +11,52 @@ fw_vlan60_wifi_allow:
     destination_port: DHCP_PORTS
     description: DHCP WiFi vers relais pfSense
 
-  - name: VLAN60_WIFI_to_DNS_AD_TCP
+  - name: VLAN60_WIFI_to_DNS_AD
+    interface: VLAN60_WiFi
+    action: pass
+    protocol: tcp/udp
+    source: VLAN60_WIFI_NET
+    destination: AD_SERVERS
+    destination_port: DNS_PORTS
+    description: DNS WiFi vers AD
+
+  - name: VLAN60_WIFI_to_AD
+    interface: VLAN60_WiFi
+    action: pass
+    protocol: tcp/udp
+    source: VLAN60_WIFI_NET
+    destination: AD_SERVERS
+    destination_port: AD_PORTS
+    description: Authentification AD WiFi
+
+  - name: VLAN60_WIFI_to_WAZUH_AGENT
     interface: VLAN60_WiFi
     action: pass
     protocol: tcp
     source: VLAN60_WIFI_NET
-    destination: AD_SERVERS
-    destination_port: DNS_PORTS
-    description: DNS TCP WiFi vers AD
+    destination: WAZUH_SERVER
+    destination_port: WAZUH_AGENT_PORTS
+    description: Agents Wazuh WiFi vers manager
 
-  - name: VLAN60_WIFI_to_DNS_AD_UDP
+  - name: VLAN60_WIFI_to_ZABBIX_ACTIVE
     interface: VLAN60_WiFi
     action: pass
-    protocol: udp
+    protocol: tcp
     source: VLAN60_WIFI_NET
-    destination: AD_SERVERS
-    destination_port: DNS_PORTS
-    description: DNS UDP WiFi vers AD
+    destination: ZABBIX_SERVER
+    destination_port: ZABBIX_SERVER_PORT
+    description: Agents Zabbix actifs WiFi vers serveur
+
+fw_vlan60_wifi_allow_internet:
+
+  - name: VLAN60_WIFI_to_INTERNET_WEB
+    interface: VLAN60_WiFi
+    action: pass
+    protocol: tcp
+    source: VLAN60_WIFI_NET
+    destination: any
+    destination_port: WEB_PORTS
+    description: Acces web Internet WiFi
+
+fw_vlan60_wifi_allow: "{{ fw_vlan60_wifi_allow_internal + fw_vlan60_wifi_allow_internet }}"
+fw_vlan60_wifi_rules: "{{ fw_vlan60_wifi_allow_internal + fw_vlan60_wifi_block + fw_vlan60_wifi_allow_internet }}"

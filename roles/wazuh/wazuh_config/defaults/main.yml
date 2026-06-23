@@ -1,0 +1,13 @@
+---
+wazuh_agent_groups:
+  - name: clients-windows-11
+    description: "Agents Windows postes clients"
+  - name: windows-serveur
+    description: "Agents Windows serveurs"
+
+wazuh_agent_groups_command: /var/ossec/bin/agent_groups
+wazuh_agent_shared_dir: /var/ossec/etc/shared
+
+wazuh_manager_config_path: /var/ossec/etc/ossec.conf
+wazuh_authd_password_path: /var/ossec/etc/authd.pass
+wazuh_authd_password: "{{ vault_wazuh_authd_password | default('BlueWolf') }}"

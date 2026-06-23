@@ -1,0 +1,204 @@
+---
+- name: Vérifier que la cible est Ubuntu
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "Ubuntu"
+    fail_msg: "Le rôle wazuh_server est prévu pour Ubuntu Server."
+
+- name: Avertir si la version Ubuntu n'est pas officiellement supportée par Wazuh
+  ansible.builtin.debug:
+    msg: >-
+      Ubuntu {{ ansible_distribution_version }} n'est pas listé dans les versions officiellement
+      recommandées par Wazuh pour les composants centraux. Déploiement autorisé par
+      wazuh_allow_unsupported_os=true.
+  when:
+    - ansible_distribution_version not in wazuh_supported_ubuntu_versions
+    - wazuh_allow_unsupported_os | bool
+
+- name: Bloquer les versions Ubuntu non supportées si demandé
+  ansible.builtin.fail:
+    msg: "Ubuntu {{ ansible_distribution_version }} n'est pas supporté officiellement par Wazuh."
+  when:
+    - ansible_distribution_version not in wazuh_supported_ubuntu_versions
+    - not wazuh_allow_unsupported_os | bool
+
+- name: Installer les prérequis Wazuh
+  ansible.builtin.apt:
+    name: "{{ wazuh_required_packages }}"
+    state: present
+    update_cache: true
+    lock_timeout: 300
+
+- name: Configurer vm.max_map_count pour Wazuh indexer
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "262144"
+    state: present
+    reload: true
+
+- name: Configurer les limites système Wazuh indexer
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/99-wazuh-indexer.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      wazuh-indexer soft nofile 65536
+      wazuh-indexer hard nofile 65536
+      wazuh-indexer soft memlock unlimited
+      wazuh-indexer hard memlock unlimited
+
+- name: Désactiver le swap immédiatement
+  ansible.builtin.command: swapoff -a
+  changed_when: true
+  when:
+    - wazuh_disable_swap | bool
+    - ansible_swaptotal_mb | int > 0
+
+- name: Commenter les entrées swap dans /etc/fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+  when: wazuh_disable_swap | bool
+
+- name: Installer UFW si demandé
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    lock_timeout: 300
+  when: wazuh_enable_ufw | bool
+
+- name: Autoriser les ports TCP Wazuh
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ wazuh_allowed_tcp_ports }}"
+  when: wazuh_enable_ufw | bool
+
+- name: Activer UFW
+  community.general.ufw:
+    state: enabled
+    policy: deny
+  when: wazuh_enable_ufw | bool
+
+- name: Vérifier si Wazuh est déjà installé
+  ansible.builtin.stat:
+    path: /var/ossec/bin/wazuh-control
+  register: wazuh_control_binary
+
+- name: Télécharger l'assistant officiel Wazuh
+  ansible.builtin.get_url:
+    url: "{{ wazuh_install_script_url }}"
+    dest: "{{ wazuh_install_script_path }}"
+    owner: root
+    group: root
+    mode: "0750"
+  when: not wazuh_control_binary.stat.exists
+
+- name: Afficher la commande de suivi du journal Wazuh
+  ansible.builtin.debug:
+    msg: "Installation Wazuh en cours. Depuis une autre session: sudo tail -f {{ wazuh_install_log_path }}"
+  when: not wazuh_control_binary.stat.exists
+
+- name: Installer Wazuh all-in-one
+  ansible.builtin.shell: >-
+    bash {{ wazuh_install_script_path | quote }} {{ wazuh_install_arguments }}
+    > {{ wazuh_install_log_path | quote }} 2>&1
+  args:
+    chdir: "{{ wazuh_install_workdir }}"
+    creates: /var/ossec/bin/wazuh-control
+  async: "{{ wazuh_install_timeout }}"
+  poll: "{{ wazuh_install_poll_interval }}"
+  register: wazuh_install_result
+  when: not wazuh_control_binary.stat.exists
+
+- name: Vérifier la présence de l'archive des secrets Wazuh
+  ansible.builtin.stat:
+    path: "{{ wazuh_install_archive }}"
+  register: wazuh_install_archive_stat
+
+- name: Extraire les mots de passe Wazuh dans un fichier root uniquement
+  ansible.builtin.shell: >-
+    tar -O -xvf {{ wazuh_install_archive | quote }} wazuh-install-files/wazuh-passwords.txt
+    > {{ wazuh_passwords_path | quote }}
+  args:
+    creates: "{{ wazuh_passwords_path }}"
+  no_log: true
+  when: wazuh_install_archive_stat.stat.exists
+
+- name: Sécuriser le fichier des mots de passe Wazuh
+  ansible.builtin.file:
+    path: "{{ wazuh_passwords_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: wazuh_install_archive_stat.stat.exists
+
+- name: Vérifier si le dépôt Wazuh existe
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/wazuh.list
+  register: wazuh_apt_repository_file
+
+- name: Désactiver le dépôt Wazuh après installation
+  ansible.builtin.replace:
+    path: /etc/apt/sources.list.d/wazuh.list
+    regexp: '^deb '
+    replace: '#deb '
+  register: wazuh_repository_disabled
+  when:
+    - wazuh_disable_repository_after_install | bool
+    - wazuh_apt_repository_file.stat.exists
+
+- name: Mettre à jour le cache APT après désactivation du dépôt Wazuh
+  ansible.builtin.apt:
+    update_cache: true
+    lock_timeout: 300
+  when: wazuh_repository_disabled is changed
+
+- name: Collecter les services systemd après installation Wazuh
+  ansible.builtin.service_facts:
+
+- name: Déterminer les services Wazuh installés
+  ansible.builtin.set_fact:
+    wazuh_installed_services: >-
+      {{ ansible_facts.services.keys()
+         | map('regex_replace', '\.service$', '')
+         | list
+         | intersect(wazuh_central_services) }}
+    wazuh_missing_services: >-
+      {{ wazuh_central_services
+         | difference(ansible_facts.services.keys()
+                      | map('regex_replace', '\.service$', '')
+                      | list) }}
+
+- name: Démarrer et activer les services Wazuh présents
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: "{{ wazuh_installed_services }}"
+
+- name: Bloquer si l'installation Wazuh est incomplète
+  ansible.builtin.fail:
+    msg: >-
+      Installation Wazuh incomplète sur {{ inventory_hostname }}. Services manquants:
+      {{ wazuh_missing_services | join(', ') }}. Le cas le plus probable ici est que l'assistant
+      officiel Wazuh n'a pas installé tous les composants sur Ubuntu {{ ansible_distribution_version }}.
+      Vérifie le journal d'installation sur la VM, puis relance après correction ou utilise Ubuntu 24.04 LTS.
+  when: wazuh_missing_services | length > 0
+
+- name: Vérifier le dashboard Wazuh localement
+  ansible.builtin.uri:
+    url: https://127.0.0.1/
+    method: GET
+    validate_certs: false
+    status_code:
+      - 200
+      - 302
+  register: wazuh_dashboard_probe
+  changed_when: false
+
+
+
