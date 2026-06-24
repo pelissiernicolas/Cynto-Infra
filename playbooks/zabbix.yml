@@ -9,8 +9,10 @@
     - zabbix_https
 
 - name: Déployer Zabbix Agent 2 sur les serveurs Linux
-  hosts: nextcloud:glpi:proxmox:qdevice:pbs
+  hosts: nextcloud:glpi:proxmox:qdevice:pbs:wazuh
   become: true
+  tags: 
+    - zabbix_agent2
   gather_facts: true
   roles:
     - zabbix_agent2
